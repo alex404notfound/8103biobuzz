@@ -79,3 +79,8 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Local Team 8103 tools and generated workspaces
+/.ftc-tools.json
+/.tools/
+/season-workspaces/

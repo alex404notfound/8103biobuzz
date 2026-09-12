@@ -1,18 +1,19 @@
+// Team 8103 overlay for an official FIRST-Tech-Challenge/FtcRobotController checkout.
+// Keep the SDK-owned root Gradle files and FtcRobotController module from that checkout.
+buildscript {
+    repositories {
+        mavenCentral()
+        google()
+        maven { url = 'https://repo.dairy.foundation/releases' }
+    }
+    dependencies {
+        classpath 'dev.frozenmilk:Load:0.2.4'
+    }
+}
+
 apply plugin: 'com.android.application'
+apply plugin: 'dev.frozenmilk.sinister.sloth.load'
 
-//
-// build.gradle in TeamCode
-//
-// Most of the definitions for building your module reside in a common, shared
-// file 'build.common.gradle'. Being factored in this way makes it easier to
-// integrate updates to the FTC into your code. If you really need to customize
-// the build definitions, you can place those customizations in this file, but
-// please think carefully as to whether such customizations are really necessary
-// before doing so.
-
-// Custom definitions may go here
-
-// Include common definitions from above.
 apply from: '../build.common.gradle'
 apply from: '../build.dependencies.gradle'
 
@@ -24,6 +25,91 @@ android {
     }
 }
 
+repositories {
+    mavenCentral()
+    google()
+    maven { url = 'https://repo.dairy.foundation/releases' }
+    maven { url = 'https://mymaven.bylazar.com/releases' }
+    maven { url = 'https://maven.brott.dev/' }
+}
+
+// Sloth's Dashboard and Panels variants provide the original library packages.
+// Exclude the originals to keep one implementation of those classes in the APK.
+configurations.configureEach {
+    exclude group: 'com.acmerobotics.dashboard'
+    exclude group: 'com.bylazar'
+}
+
 dependencies {
     implementation project(':FtcRobotController')
+
+    implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
+    implementation 'com.acmerobotics.slothboard:dashboard:0.2.4+0.5.1'
+    implementation 'com.bylazar.sloth:fullpanels:0.2.4.1+1.0.12'
+    implementation 'com.pedropathing:ftc:2.1.0-alpha.2'
+    implementation 'com.pedropathing:telemetry:1.0.0'
+    implementation 'com.pedropathing:ivy:1.0.0'
+    implementation 'org.ftclib.ftclib:core:2.1.1'
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
+    testImplementation 'org.json:json:20240303'
+}
+
+// Load 0.2.4 uses Project.exec(), removed in Gradle 9. Keep its artifact format
+// and task dependencies, and replace only the two actions that invoke ADB.
+abstract class SlothExecServices {
+    @javax.inject.Inject
+    abstract org.gradle.process.ExecOperations getExecOperations()
+}
+
+def slothExec = objects.newInstance(SlothExecServices)
+def runSlothAdb = { task, arguments ->
+    def serial = System.getenv('ANDROID_SERIAL')
+    if (!serial) {
+        throw new GradleException('ANDROID_SERIAL is required. Use push.sh or push.ps1 to select the robot.')
+    }
+    def stderr = new ByteArrayOutputStream()
+    def result = slothExec.execOperations.exec { spec ->
+        spec.commandLine(([task.adbExecutable.get().asFile.absolutePath, '-s', serial] + arguments)
+                .collect { it.toString() })
+        spec.ignoreExitValue = true
+        spec.errorOutput = stderr
+    }
+    [result.exitValue, stderr.toString('UTF-8')]
+}
+
+tasks.named('deploySloth').configure {
+    setActions([])
+    doLast { task ->
+        def location = task.deployLocation.get()
+        def checkLock = {
+            def result = runSlothAdb(task, ['shell', "test ! -f ${location}/lock"])
+            if (result[1].trim()) {
+                throw new GradleException(result[1])
+            }
+            result[0] == 0
+        }
+        if (!checkLock()) {
+            throw new GradleException('Sloth is still loading (lock file exists). Wait for the previous load or restart the robot.')
+        }
+        def bundle = task.outputDir.file("${task.bundleBaseName.get()}.jar").get().asFile.absolutePath
+        def pushed = runSlothAdb(task, ['push', bundle, location])
+        if (pushed[0] != 0) {
+            throw new GradleException("Sloth push failed (exit ${pushed[0]}): ${pushed[1]}")
+        }
+        while (!checkLock()) {
+            Thread.sleep(50)
+        }
+    }
+}
+
+tasks.named('removeSlothRemote').configure {
+    setActions([])
+    doLast { task ->
+        def result = runSlothAdb(task, ['shell', "rm -f ${task.deployLocation.get()}/loaded.jar"])
+        if (result[0] != 0) {
+            throw new GradleException("Sloth cleanup failed (exit ${result[0]}): ${result[1]}")
+        }
+    }
 }

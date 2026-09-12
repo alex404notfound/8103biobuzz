@@ -1,0 +1,253 @@
+{
+  "files": [
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/math/PoseMirror.java",
+      "sha256": "9872d7259ed1822d16c75169a98d9b076b1546f367ff3a6ca7251e4b45878fac",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/math/PoseMirror.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/math/VisionFrame.java",
+      "sha256": "9b9e6685c1e5ef07f621614be5e2576a1e09f9ab3e26dadbe65348064524db47",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/math/VisionFrame.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/ConfigureColorRangefinder.java",
+      "sha256": "95c898b91f30061a61aac8ab4ce41024c23c9b1099c8eb9933016e8c209655c4",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/ConfigureColorRangefinder.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/AutoOpMode.java",
+      "sha256": "aca15baaff6517b5707ff8f5dfc9fa8cc2942cc8e3b574ddf5a6cb89823bd286",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/AutoOpMode.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/BlueSkeletonAuto.java",
+      "sha256": "a0d7a7aabafd4a66f1c953fc84a68a03dbe450fbcca6f333ee91adbb48d02d6e",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/BlueSkeletonAuto.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/RedSkeletonAuto.java",
+      "sha256": "1532401fbf46b089728d62607b22082f44a82beff4683e6607ae7189e7246819",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/RedSkeletonAuto.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/SkeletonAuto.java",
+      "sha256": "a03ac28b81747b398132f3d42d7eb28aee3d14decf15fc867bf167347324ba37",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/autos/SkeletonAuto.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/localizers/BlueCorner.java",
+      "sha256": "0b0ddaf6eb1a638023e2721f97114893a93c40834d232b1c54bbb31c387f0acc",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/localizers/BlueCorner.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/localizers/RedCorner.java",
+      "sha256": "d2595e5ff747058196b21d97ebed40b9785b3a1c398ea6099eaf549d272c9145",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/localizers/RedCorner.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/SkeletonTeleOp.java",
+      "sha256": "46a0e3d2c61c866e8984cd6237decb549bba3f23a1592d6d6d4aa3a1521b1462",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/SkeletonTeleOp.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/SkeletonVisionTeleOp.java",
+      "sha256": "bacd33538e4d1761717cf8014b90b638ddbd7b34b509ddf2d2f385ff746e8e00",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/teleop/SkeletonVisionTeleOp.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/LimelightCheck.java",
+      "sha256": "cdcb1e80218e05351b5e3e4c42f049a5841e0b563a1d8bf6f47e36e03300d10b",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/LimelightCheck.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/PinpointCheck.java",
+      "sha256": "7f1cfd387b9edf7a042698d644ba71dc23d15d33433f032dc1a949c10139c6fa",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/PinpointCheck.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/Constants.java",
+      "sha256": "db5b36d8d3d42ee0def4794510bbab919acc7760a7d2ef75494dbadd01e5a5a3",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/Constants.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/OffsetCalibration.java",
+      "sha256": "18b288f8d13432611be578bd7db04e3c85eabcabba6f89e8473fb910cdea67a0",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/OffsetCalibration.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/Tuning.java",
+      "sha256": "2c3dae50f3d5c5f0dcce287312523ee9712fbd1c45b143293aa94159a8a4e6b0",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/Tuning.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/TuningSafety.java",
+      "sha256": "62049e4752313af9679c2d311d523eafcaf6dd67b67d058363a9bd763d575655",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/pedroPathing/TuningSafety.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/robot/Alliance.java",
+      "sha256": "345a98ff801ad9766b0353b8a6b89a0e6c6d38aeb30e07a66e2b9c1d3519d85e",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/robot/Alliance.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/robot/FieldConstants.java",
+      "sha256": "5d1e61bfae37730a06f5b9ea91590da491321f9a5563a6a13bf4d651cf24d911",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/robot/FieldConstants.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/robot/Robot.java",
+      "sha256": "a68beadb1dc1eeb1859c0ed3893dc0a0dd2cda8ed3cbdcc85031e27530be5331",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/robot/Robot.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/robot/RobotOpMode.java",
+      "sha256": "928097d71e838da9b1f0ff0c6e72b83d1695bd70f26eb9a31a64c6b879e70e91",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/robot/RobotOpMode.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystems/Drivetrain.java",
+      "sha256": "96585f598c86ed9170f8c1f7effd1b8b87d7441d2a510ab8b242fdc0b51a48ca",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/subsystems/Drivetrain.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystems/ExampleSubsystem.java",
+      "sha256": "1c184979c9b6e173eb351d842c3d7706c42df6c98bbaf7e719ebd3e255441193",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/subsystems/ExampleSubsystem.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystems/Limelight.java",
+      "sha256": "c32892f05366b4714e61ff41f45f16177621abde6f72423743574327757729f9",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/subsystems/Limelight.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystems/OrientationPublisher.java",
+      "sha256": "4ac14dd1d631eb9a0d46e1f4b16b2d643eae6ca14ce6c8e7de8bcae219c90a2b",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/subsystems/OrientationPublisher.java"
+    },
+    {
+      "path": "TeamCode/src/main/java/org/firstinspires/ftc/teamcode/subsystems/VisionResultGate.java",
+      "sha256": "8391f68feae5a314549f30de9d0ec4d313bcb81844b7004f06875a5fef95e3ee",
+      "source": "src/main/java/org/firstinspires/ftc/teamcode/subsystems/VisionResultGate.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/FTCLibCompatibilityTest.java",
+      "sha256": "00c0043c74350ba072b3e915aceed2f19060972a64b04f35e177f7e685c06484",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/FTCLibCompatibilityTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/IvyCompatibilityTest.java",
+      "sha256": "15f00c3ff056167b336f850c36eaecb921090a8ff4f2ff51607687081e40e52a",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/IvyCompatibilityTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/math/VisionFrameTest.java",
+      "sha256": "abe10f5e4cd538aeccf6c84188b5f2c8b166e7ff1d6a609a1e2d7e3cbdb73353",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/math/VisionFrameTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/opmodes/autos/AutoLocalizationTest.java",
+      "sha256": "98fb9239b41e1c45c6e0d42522dae4b1570e72e0a83ce017552893351971ce6e",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/opmodes/autos/AutoLocalizationTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/pedroPathing/OffsetCalibrationTest.java",
+      "sha256": "a4f8f1ec6afdf70021eb256ee222d1cfabf78281eed1d25ed5b93f4d00f2f872",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/pedroPathing/OffsetCalibrationTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/pedroPathing/TuningSafetyTest.java",
+      "sha256": "283f0478ed2243ed00b574cfccb5b4a3dd051347375dbb750292c80b768009f4",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/pedroPathing/TuningSafetyTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/robot/RobotHardwareProfileTest.java",
+      "sha256": "623ae1115fde0ca9c295bddc5c4b5e2a78e25e9e269ff49a89c8f2ac173b9993",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/robot/RobotHardwareProfileTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/robot/RobotOpModeLifecycleTest.java",
+      "sha256": "766e1fc2fc1bbba2e8e54c1feb1528c0444759c77ebd0fc37f15e5bb97023309",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/robot/RobotOpModeLifecycleTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/subsystems/DrivetrainCommandTest.java",
+      "sha256": "ccee22dc66639192ebc979af1242845f155fbe5e6c2eda700b52e57607917f5d",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/subsystems/DrivetrainCommandTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/subsystems/ExampleSubsystemTest.java",
+      "sha256": "d22664dc6a3ac5d284ad066f58f6fdf3c6bf8f8c07368f6db21e8e9758a8c4be",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/subsystems/ExampleSubsystemTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/subsystems/LimelightTest.java",
+      "sha256": "62ed47bedbe97f09d5f307f63d8c0a3d3c779fd538a94d1de049421041b2c2bf",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/subsystems/LimelightTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/subsystems/OrientationPublisherTest.java",
+      "sha256": "29a7b1c3518b286d051442678f28432134bf5997516eb003ed672b985f3bb5b0",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/subsystems/OrientationPublisherTest.java"
+    },
+    {
+      "path": "TeamCode/src/test/java/org/firstinspires/ftc/teamcode/subsystems/VisionResultGateTest.java",
+      "sha256": "40301dca343f0405e7f31d05c274801992ce022db0c355f94fe60322c795187f",
+      "source": "src/test/java/org/firstinspires/ftc/teamcode/subsystems/VisionResultGateTest.java"
+    },
+    {
+      "path": "TeamCode/src/main/res/xml/teamconfig8103.xml",
+      "sha256": "6712b41cd3e43b1f36bd6604181598e980415deb435a7c7110f1a15398d5a14f",
+      "source": "src/main/res/xml/teamconfig8103.xml"
+    },
+    {
+      "path": "TeamCode/src/main/res/xml/teamconfig8103_example.xml",
+      "sha256": "98d8f5d21e8f75f88a8530f869be171e0f20efb8ff08776c1bfdf2710415ef94",
+      "source": "src/main/res/xml/teamconfig8103_example.xml"
+    },
+    {
+      "path": "TeamCode/src/main/res/xml/teamconfig8103_vision.xml",
+      "sha256": "7399ab1f914e44906c417bf30cd31a9e8467d22d188952711a72338c44459aae",
+      "source": "src/main/res/xml/teamconfig8103_vision.xml"
+    },
+    {
+      "path": "TeamCode/build.gradle",
+      "sha256": "a77b73ffd743918dcd9c58e0f41580b90f7b80de13bcf87312cadd30b17cd206",
+      "source": "sdk-overlay/TeamCode/build.gradle"
+    },
+    {
+      "path": "push.sh",
+      "sha256": "dd29dab42f649da1fa749ec0b0875e4b8246cdb0a1ae99a0168002350a540af9",
+      "source": "push.sh"
+    },
+    {
+      "path": "push.ps1",
+      "sha256": "bdf12cd035127848031c5bab63570be032f9db9a78501ab0aec4ed22a54cda4a",
+      "source": "push.ps1"
+    },
+    {
+      "path": "tools/run_gradle.py",
+      "sha256": "baefda7deeda24398f3f64150484a5153ccc1fd6510768e9567e64f7104f9ad3",
+      "source": "tools/run_gradle.py"
+    },
+    {
+      "path": "tools/deploy.py",
+      "sha256": "17c760d857ad68f04101843b81dcb3161b87d1c5779f13ecd7293f2fccacc897",
+      "source": "tools/deploy.py"
+    },
+    {
+      "path": "docs/TUNING.md",
+      "sha256": "99252bc218695ed2f214a0008d26b552a2d9140f09f652f5fe0986bad6bb6a7f",
+      "source": "docs/TUNING.md"
+    },
+    {
+      "path": "docs/NEW_SEASON.md",
+      "sha256": "cd559e684724e83d83e4634d56bb574264ccb7fa3af9bfaf53170d488d931907",
+      "source": "docs/NEW_SEASON.md"
+    }
+  ],
+  "format_version": 1,
+  "sdk_commit": "e14c2aeb33e84d4ea21697beeea9ac49557be870",
+  "sdk_ref": "v12.0",
+  "template_commit": "524750257d25f38cff1e0da2dbd91eecac432134"
+}
