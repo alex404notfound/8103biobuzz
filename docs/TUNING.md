@@ -2,8 +2,7 @@
 
 Open **`~/Downloads/8103biobuzz`** on the prepared computer. All commands in
 this guide run from that project's root. Edit robot code under
-`TeamCode/src/main/java/org/firstinspires/ftc/teamcode`. In the reusable template,
-the equivalent path starts with `src/main/java` instead.
+`TeamCode/src/main/java/org/firstinspires/ftc/teamcode`.
 
 ## Build and install
 
@@ -40,8 +39,8 @@ later**. [Official release notes](https://github.com/FIRST-Tech-Challenge/FtcRob
 Local tool locations are in ignored `.ftc-tools.json`. If you move the project,
 update its `tools_home` or set `FTC_TOOLS_HOME`. On another computer install the
 matching Java/Android tools and point the runner at a directory containing
-`jdk21` (a JDK home or macOS bundle), `sdk`, and writable `gradle-home` and
-`android-user` folders. The legacy Dairy template also needs `jdk8`.
+`jdk25` (a JDK home or macOS bundle; required by Load 0.3.0), `sdk`, and writable `gradle-home` and
+`android-user` folders.
 
 ## Choose the hardware configuration
 
@@ -50,7 +49,7 @@ Driver Station. Verify hub identities and actual wiring before INIT.
 
 | Configuration | Hardware | OpModes/profile |
 | --- | --- | --- |
-| `teamconfig8103` | Control Hub, four drive motors, `pinpoint` | Skeleton TeleOp, skeleton autos, Tuning; `DRIVE_ONLY` |
+| `teamconfig8103` | Control Hub, four drive motors, `pinpoint` | Skeleton TeleOp, skeleton autos, AutoTune; `DRIVE_ONLY` |
 | `teamconfig8103_vision` | Drive hardware plus `limelight` 3A | Skeleton Vision TeleOp, Limelight Check; `DRIVE_AND_VISION` |
 | `teamconfig8103_example` | Vision hardware plus Expansion Hub and `example` motor | Explicit `Robot.HardwareProfile.ALL` when using the mechanism example |
 
@@ -61,55 +60,63 @@ motor. **Pinpoint Check** maps only the Pinpoint and never commands drive motors
 
 ## 1. Confirm the chassis and Pinpoint
 
-The numbers in `pedroPathing/Constants.java` came from another robot. Verify motor
-directions, maximum power, pod model, encoder directions, offsets, and velocities
-before treating any of them as tuned. The current pod preset is
-`goBILDA_4_BAR_POD`; select the preset matching your actual pods or provide the
-measured custom resolution. The code expects a goBILDA **Pinpoint** computer;
-pods wired directly into hub motor encoders need a different Pedro localizer.
+**Nothing in the old template was measured on this robot.** The motor names and
+directions are initial examples. Pod offsets now start at zero. Configure
+`pedroPathing/Constants.java`: `drivetrainConfig` holds motor names/directions;
+`localizerConfig` holds the Pinpoint name, pod preset, encoder directions and
+offsets. The current preset is `goBILDA_4_BAR_POD`; choose the actual pod model.
+The code uses a goBILDA **Pinpoint** computer. Pods wired directly to hub motor
+encoders require a different localizer.
 
-1. Select **Pinpoint Check**, press INIT, keep the robot stationary, and press
-   gamepad1 **X**. Wait for READY and no pending calibration.
-2. Press START and push the robot by hand. At heading zero, forward should
-   increase X, left should increase Y, and counterclockwise rotation should
-   increase heading. Check both encoder counts and a measured distance.
-3. Correct the pod model/directions in Constants and repeat. Check drive motor
-   directions separately with wheels clear before driving on the field.
+1. Select **Pinpoint Check**, INIT, keep the robot stationary, and press **X**.
+   Wait for READY with no pending calibration.
+2. START and push by hand. At heading zero, forward increases X, left increases
+   Y, and counterclockwise rotation increases heading. Check counts and distance.
+3. Correct the pod preset/directions and repeat. Use the AutoTune mecanum check
+   with wheels raised to verify all motor directions before floor tests.
 
-Pedro's follower construction performs its own Pinpoint pose/IMU reset during
-INIT. Keep the chassis still throughout initialization. The explicit INIT X
-control recalibrates the gyro without resetting the current field pose.
-Readiness requires completed calibration, READY device status, and finite data.
+Follower construction preserves the device pose and does not reset/calibrate it.
+INIT X explicitly recalibrates the gyro while retaining field pose. Robot motion
+requires a recent completed READY sample with finite position and velocity.
 
-## 2. Tune Pedro
+## 2. Tune Pedro 3 with AutoTune
 
-Select **Tuning** and choose a child tuner. Keep still in INIT; **X** recalibrates
-Pinpoint. Wait for READY before START. Running localization faults or **B** stop
-the selected tuner and latch the abort. Press Driver Station STOP before trying
-again; recovery does not restart motion. Automatic tuners command motors,
-including full power, so clear the complete travel area shown by that tuner.
+Full-install the APK, connect to the robot Wi-Fi, and open
+**http://192.168.43.1:10158** (use the robot's address if different). This project
+registers team procedures for mecanum, Pinpoint, Foresight and path checks.
+The old Pedro 2 selector and predictive-braking tuners have been replaced.
 
-1. **Localization → Localization Test:** check pose scale and orientation.
-2. **Localization → Offsets Tuner:** START, then rotate in place exactly 180° in
-   either direction. Wait for **Calibration captured**. Record the absolute
-   `strafePodX` and `forwardPodY` results, STOP, then put them in
-   `Constants.localizerConstants`. The tuner temporarily zeros offsets and
-   restores them when stopped. Translation during the turn invalidates the result.
-3. **Automatic → Forward Velocity Tuner / Lateral Velocity Tuner:** measure this
-   chassis and save `xVelocity` / `yVelocity` in `Constants.driveConstants`.
-4. Use the zero-power acceleration tuners and **Predictive Braking Tuner** for
-   the selected braking approach. Save the reported coefficients in Constants.
-   The template supplies predictive braking coefficients that need replacing.
-5. Tune **Manual → Heading Tuner**, then validate braking and path tracking.
-   Translational/Drive PID tuners apply when using the PIDF drive approach.
-   Finish with short **Tests → Line** runs before larger shapes.
+Each phase starts with motors stopped. **X** recalibrates Pinpoint while
+stationary; wait at least 300 ms and for READY, then release/press **A** to arm.
+Manual measurement phases use A to accept the result. **B**, Driver Station STOP,
+web STOP, localization faults and timeouts abort and stop the motors; recovery
+does not restart a stopped phase. Confirm each phase's travel area before arming;
+Foresight calibration includes full-power runs.
 
-Use Dashboard/Panels telemetry while tuning; record final values in source and
-redeploy so a fresh app start retains them. Pedro's current documentation may
-show APIs newer than this project's pinned alpha; match edits to the supplied
-Constants/Tuning classes. See the official
-[automatic tuning guide](https://pedropathing.com/docs/pathing/tuning/automatic)
-and [predictive braking guide](https://pedropathing.com/docs/pathing/tuning/drive-algorithm/predictive/about).
+1. **Mecanum:** verify one motor at a time with wheels raised. Record corrected
+   names/directions in `Constants.drivetrainConfig`.
+2. **Pinpoint:** verify directions and measured travel; correct Constants and
+   repeat if either disagrees with the physical movement. Run the offset procedure:
+   rotate in place 180–240° in either direction and accept the measurement. It temporarily
+   zeros offsets and restores them on exit, including faults and STOP. Save the
+   measured forward-pod offset in `localizerConfig.xPodOffset` and lateral-pod
+   offset in `localizerConfig.yPodOffset` (inches). Translation during rotation
+   invalidates the measurement.
+3. **Foresight:** run the new velocity, deceleration, braking, heading and
+   translation identification steps. Copy the generated `foresightConfig` into
+   Constants, including its imports. Set **`foresightTuned = true` only after
+   replacing the scaffold with those measurements** and validating the hardware.
+4. Full-install for library/resource changes; use Sloth for ordinary Java changes.
+   Validate a short path and STOP before larger paths or competition autonomous.
+
+The scaffold uses zero feedback/braking gains and dummy positive scale values
+solely so TeleOp and sensor checks can initialize. It is not a robot tune.
+Autonomous refuses START while `foresightTuned` is false. Optional TeleOp heading
+hold gains (`Drivetrain.headingP/I/D`) also start at zero and need tuning.
+
+Dashboard/Panels remain available for live telemetry and mechanism PID tuning.
+Record final values in source so app restarts retain them.
+[Pedro 3 AutoTune documentation](https://pedropathing.com/docs/pathing/tuning).
 
 ## 3. Limelight in BIOBUZZ
 
@@ -167,14 +174,14 @@ and alliance symmetry before retaining `PoseMirror`'s X reflection.
 
 Author shared auto geometry once, then use `transformed()` and
 `transformedHeading()` for the red/blue pair. Build actions in `buildSequence()`;
-put setup in `onAutoInit()`. The base refuses START without healthy localization
+put setup in `onAutoInit()`. The base refuses START until Foresight is configured and localization is healthy
 and cancels an active sequence after localization faults. Validate one short
 path, interruption/STOP, pose handoff to teleop, then both alliance versions on
 the actual field. These software checks do not establish collision-free paths.
 
 ## FTCLib and Ivy
 
-Separate **FTCLib core 2.1.1** is included in both builds, with a host test using
+Separate **FTCLib core 2.1.1** is included in this project, with a host test using
 the real PID controller API:
 
 ```java
@@ -186,3 +193,10 @@ command scheduler, and keep persistent mechanism control in each subsystem's
 `periodic()`. FTCLib is a Java library installed through Gradle; it is not a
 separate desktop tuning application. Dashboard/Panels provide the live tuning UI.
 [FTCLib project](https://github.com/FTCLib/FTCLib).
+
+
+A separate checkout of the official FTCLib **v2.1.1** source is installed on this
+computer at `~/Downloads/8103Template/.tools/ftclib`. It is for examples/reference;
+the robot uses the published Gradle dependency. FTCLib is a library, not a desktop
+application. Ivy core + Pedro integration **1.1.0** is the sole command framework;
+NextFTC is not installed.

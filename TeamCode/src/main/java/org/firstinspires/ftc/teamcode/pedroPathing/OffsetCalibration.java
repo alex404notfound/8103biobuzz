@@ -1,18 +1,20 @@
 package org.firstinspires.ftc.teamcode.pedroPathing;
 
 /** Pure offset-tuning math, kept separate from the FTC hardware lifecycle for host-side tests. */
-final class OffsetCalibration {
+public final class OffsetCalibration {
     private static final double HALF_TURN_RADIANS = Math.PI;
 
     private OffsetCalibration() {}
 
-    static boolean hasCompletedHalfTurn(double totalHeading) {
+    public static boolean hasCompletedHalfTurn(double totalHeading) {
         return !Double.isNaN(totalHeading)
                 && !Double.isInfinite(totalHeading)
                 && Math.abs(totalHeading) >= HALF_TURN_RADIANS;
     }
 
-    static Result calculate(double poseX, double poseY, double totalHeading) {
+    public static Result calculate(double poseX, double poseY, double totalHeading) {
+        if (!Double.isFinite(poseX) || !Double.isFinite(poseY) || !Double.isFinite(totalHeading))
+            throw new IllegalArgumentException("Finite position and rotation are required to calculate offsets");
         double sin = Math.sin(totalHeading);
         double oneMinusCos = 1 - Math.cos(totalHeading);
         double divisor = sin * sin + oneMinusCos * oneMinusCos;
@@ -28,9 +30,9 @@ final class OffsetCalibration {
         return new Result(strafePodX, forwardPodY);
     }
 
-    static final class Result {
-        final double strafePodX;
-        final double forwardPodY;
+    public static final class Result {
+        public final double strafePodX;
+        public final double forwardPodY;
 
         Result(double strafePodX, double forwardPodY) {
             this.strafePodX = strafePodX;

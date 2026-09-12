@@ -1,19 +1,17 @@
 package org.firstinspires.ftc.teamcode.opmodes.autos;
 
-import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
 import com.pedropathing.ivy.Command;
-import com.pedropathing.paths.PathChain;
+import com.pedropathing.paths.Path;
 
 import org.firstinspires.ftc.teamcode.robot.Alliance;
 
 import static com.pedropathing.ivy.groups.Groups.sequential;
+import static com.pedropathing.api.Paths.line;
 
 /**
- * Proves paths + mirroring + scheduler end to end: drive one straight Bezier
- * line out from the corner start. Paths follow the DECODE idiom — a nested
- * Paths class holding public final PathChain fields, every control point routed
- * through transformed() so the whole auto mirrors (or shifts) in one place.
+ * Example path + mirroring + command sequence. Coordinates are practice examples,
+ * not a BIOBUZZ strategy. Route every control point through transformed().
  */
 public abstract class SkeletonAuto extends AutoOpMode {
     private Paths paths;
@@ -42,16 +40,11 @@ public abstract class SkeletonAuto extends AutoOpMode {
     }
 
     private class Paths {
-        public final PathChain driveOut;
+        public final Path driveOut;
 
         Paths() {
-            driveOut = robot.drivetrain.pathBuilder()
-                    .addPath(new BezierLine(transformed(7.5, 8.1), transformed(7.5, 32)))
-                    // Linear heading interpolation: blend heading start -> end along the path.
-                    // Endpoints are equal here, so the heading simply holds; linear is used
-                    // as the common idiom, not because interpolation is needed for this leg.
-                    .setLinearHeadingInterpolation(transformedHeading(90), transformedHeading(90))
-                    .build();
+            driveOut = line(transformed(7.5, 8.1), transformed(7.5, 32))
+                    .constant(transformedHeading(90));
         }
     }
 }

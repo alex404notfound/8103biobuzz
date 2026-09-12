@@ -1,7 +1,9 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import com.pedropathing.ivy.Command;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -96,14 +98,14 @@ public class Limelight {
         }
 
         Pose current = drivetrain.getPose();
-        Pose velocity = drivetrain.getVelocity();
-        if (!finite(current) || !finite(velocity)) {
+        Velocity velocity = drivetrain.getVelocity();
+        if (!finite(current) || !Constants.isFiniteVelocity(velocity)) {
             stationarySampleSeen = false;
             lastCorrection = "Invalid odometry sample";
             return;
         }
-        if (Math.hypot(velocity.getX(), velocity.getY()) > maxStationarySpeed
-                || Math.abs(Math.toDegrees(velocity.getHeading())) > maxStationaryTurnDegreesPerSecond) {
+        if (Math.hypot(velocity.vx, velocity.vy) > maxStationarySpeed
+                || Math.abs(Math.toDegrees(velocity.omega)) > maxStationaryTurnDegreesPerSecond) {
             stationarySampleSeen = false;
             lastCorrection = "Keep the robot stationary for correction";
             return;
@@ -127,12 +129,12 @@ public class Limelight {
                 return;
             }
             Pose candidate = frame().toPedro(pose[0], pose[1], pose[5]);
-            if (Math.hypot(candidate.getX() - current.getX(), candidate.getY() - current.getY()) > maxCorrectionInches) {
+            if (Math.hypot(candidate.x() - current.x(), candidate.y() - current.y()) > maxCorrectionInches) {
                 lastCorrection = "Correction exceeds allowed distance";
                 return;
             }
             // MegaTag2 yaw depends on our supplied heading; keep the independent odometry state.
-            drivetrain.applyVisionTranslation(new Pose(candidate.getX(), candidate.getY(), current.getHeading()));
+            drivetrain.applyVisionTranslation(new Pose(candidate.x(), candidate.y(), current.heading()));
             lastCorrection = "Translation corrected; odometry heading retained";
         } catch (JSONException | IllegalArgumentException invalidPose) {
             lastCorrection = "Invalid camera payload or frame configuration";
@@ -144,8 +146,8 @@ public class Limelight {
     }
 
     private static boolean finite(Pose pose) {
-        return pose != null && Double.isFinite(pose.getX()) && Double.isFinite(pose.getY())
-                && Double.isFinite(pose.getHeading());
+        return pose != null && Double.isFinite(pose.x()) && Double.isFinite(pose.y())
+                && Double.isFinite(pose.heading());
     }
 
     private static boolean validLimits() {
@@ -158,11 +160,11 @@ public class Limelight {
 
     private void observeStationarity() {
         Pose pose = drivetrain.getPose();
-        Pose velocity = drivetrain.getVelocity();
-        if (!drivetrain.isLocalizationReady() || !finite(pose) || !finite(velocity)
+        Velocity velocity = drivetrain.getVelocity();
+        if (!drivetrain.isLocalizationReady() || !finite(pose) || !Constants.isFiniteVelocity(velocity)
                 || !validLimits() || !Double.isFinite(maxStalenessMs) || maxStalenessMs <= 0
-                || Math.hypot(velocity.getX(), velocity.getY()) > maxStationarySpeed
-                || Math.abs(Math.toDegrees(velocity.getHeading())) > maxStationaryTurnDegreesPerSecond) {
+                || Math.hypot(velocity.vx, velocity.vy) > maxStationarySpeed
+                || Math.abs(Math.toDegrees(velocity.omega)) > maxStationaryTurnDegreesPerSecond) {
             stationarySampleSeen = false;
             return;
         }

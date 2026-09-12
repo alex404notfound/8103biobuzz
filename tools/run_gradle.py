@@ -53,7 +53,10 @@ def load_setup(project, environment):
     official = (project / "settings.gradle").is_file() and (project / "FtcRobotController").is_dir()
     homes = {v: find_java_home(tools / f"jdk{v}") for v in (8, 21, 25)}
     missing = []
-    for version in ((21,) if official else (21, 8)):
+    # The season's Load 0.3 plugin is published as Java 25 bytecode. Gradle 9.1
+    # supports this JVM; the older standalone Dairy layout still uses Java 21.
+    launcher = 25 if official else 21
+    for version in ((launcher,) if official else (launcher, 8)):
         if homes[version] is None:
             missing.append(f"JDK {version} with bin/java and bin/javac under {tools / ('jdk' + str(version))}")
     sdk = tools / "sdk"
@@ -72,9 +75,9 @@ def load_setup(project, environment):
                          + "\nInstall them here, or select an existing installation with FTC_TOOLS_HOME"
                          + " or .ftc-tools.json (tools_home).")
     child_env = dict(environment)
-    child_env.update(JAVA_HOME=str(homes[21]), ANDROID_HOME=str(sdk), ANDROID_SDK_ROOT=str(sdk),
+    child_env.update(JAVA_HOME=str(homes[launcher]), ANDROID_HOME=str(sdk), ANDROID_SDK_ROOT=str(sdk),
                      ANDROID_USER_HOME=str(tools / "android-user"), GRADLE_USER_HOME=str(tools / "gradle-home"))
-    child_env["PATH"] = os.pathsep.join([str(homes[21] / "bin"), environment.get("PATH", ""), str(sdk / "platform-tools")])
+    child_env["PATH"] = os.pathsep.join([str(homes[launcher] / "bin"), environment.get("PATH", ""), str(sdk / "platform-tools")])
     return tools, homes, official, wrapper, child_env
 
 

@@ -1,14 +1,14 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.pedropathing.control.PIDFCoefficients;
-import com.pedropathing.control.PIDFController;
+import com.pedropathing.controllers.PIDController;
+import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.behaviors.EndCondition;
-import com.pedropathing.paths.PathChain;
-import com.pedropathing.paths.PathBuilder;
+import com.pedropathing.paths.Path;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import java.util.function.LongSupplier;
@@ -22,8 +22,9 @@ import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 
 @Config
 public class Drivetrain {
-    public static PIDFCoefficients headingCoefficients = new PIDFCoefficients(1.75, 0, 0.09, 0);
-    private static Pose poseTransfer = new Pose();
+    // Optional TeleOp heading hold gains; tune on the actual robot in Dashboard.
+    public static double headingP = 0, headingI = 0, headingD = 0;
+    private static Pose poseTransfer = Pose.zero();
     private final DcMotorEx frontLeft;
     private final DcMotorEx frontRight;
     private final DcMotorEx backLeft;
@@ -40,7 +41,7 @@ public class Drivetrain {
     private String localizationStatus = "WAITING_FOR_SAMPLE";
     private static final long MAX_SAMPLE_AGE_NANOS = 250_000_000L;
     private static final long CALIBRATION_MIN_NANOS = 300_000_000L;
-    private final PIDFController headingController = new PIDFController(headingCoefficients);
+    private final PIDController headingController = new PIDController(headingP, headingI, headingD);
     private boolean lockHeading = false;
     private double headingTargetRadians = 0;
 
@@ -55,18 +56,14 @@ public class Drivetrain {
     Drivetrain(Follower follower, HardwareMap hardwareMap, Telemetry telemetry, LongSupplier clock) {
         this.follower = follower;
         this.clock = clock;
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConstants.hardwareMapName);
-        frontLeft = hardwareMap.get(DcMotorEx.class, "frontLeft");
-        frontRight = hardwareMap.get(DcMotorEx.class, "frontRight");
-        backLeft = hardwareMap.get(DcMotorEx.class, "backLeft");
-        backRight = hardwareMap.get(DcMotorEx.class, "backRight");
-
-        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConfig.name.get());
+        frontLeft = hardwareMap.get(DcMotorEx.class, Constants.drivetrainConfig.frontLeftName.get());
+        frontRight = hardwareMap.get(DcMotorEx.class, Constants.drivetrainConfig.frontRightName.get());
+        backLeft = hardwareMap.get(DcMotorEx.class, Constants.drivetrainConfig.backLeftName.get());
+        backRight = hardwareMap.get(DcMotorEx.class, Constants.drivetrainConfig.backRightName.get());
 
         this.telemetry = telemetry;
+        stop();
     }
 
     private static double signedSquare(double raw) {
@@ -83,24 +80,29 @@ public class Drivetrain {
      * Blue callers mirror BEFORE calling: lockHeading(180 - redDegrees).
      */
     public void lockHeading(double targetDegrees) {
+        headingController.reset();
         lockHeading = true;
         headingTargetRadians = Math.toRadians(targetDegrees);
     }
 
     public void unlockHeading() {
         lockHeading = false;
+        headingController.reset();
     }
 
     public void arcadeDrive(double forward, double strafe, double turn, Alliance alliance) {
         if (!isLocalizationReady()) { stop(); return; }
-        double headingRadians = follower.getHeading();
+        double headingRadians = follower.pose().heading();
 
         forward = signedSquare(forward);
         strafe = signedSquare(strafe);
 
         if (lockHeading) {
-            headingController.updateError(AngleUnit.normalizeRadians(headingTargetRadians - headingRadians));
-            turn = -headingController.run();
+            headingController.kP = headingP;
+            headingController.kI = headingI;
+            headingController.kD = headingD;
+            turn = -headingController.calculate(0,
+                    AngleUnit.normalizeRadians(headingTargetRadians - headingRadians));
         } else {
             turn = signedSquare(turn);
         }
@@ -113,25 +115,20 @@ public class Drivetrain {
 
         double denominator = Math.max(Math.abs(x) + Math.abs(y) + Math.abs(turn), 1);
 
-        frontLeft.setPower((y + x + turn) / denominator);
-        frontRight.setPower((y - x - turn) / denominator);
-        backLeft.setPower((y - x + turn) / denominator);
-        backRight.setPower((y + x - turn) / denominator);
+        // Use Pedro's motor owner for manual output too, so its cached powers remain correct.
+        follower.drivetrain.drive(new DrivePowers(y / denominator, -x / denominator,
+                -turn / denominator), true);
     }
 
     public Pose getPose() {
-        return follower.getPose();
+        return follower.pose();
     }
 
     /** Robot velocity in field inches/second and radians/second. */
-    public Pose getVelocity() { return follower.getPoseTracker().getLocalizer().getVelocity(); }
+    public Velocity getVelocity() { return follower.velocity(); }
 
     public double getHeading() {
-        return follower.getHeading();
-    }
-
-    public PathBuilder pathBuilder() {
-        return follower.pathBuilder();
+        return follower.pose().heading();
     }
 
     public void setPose(Pose pose) {
@@ -139,21 +136,30 @@ public class Drivetrain {
     }
 
     public void setStartingPose(Pose pose) {
-        follower.setStartingPose(pose);
+        follower.setPose(pose);
     }
 
     public void usePreviousStartingPose() {
         setStartingPose(poseTransfer);
     }
 
-    public Command followPath(PathChain path) {
+    public boolean isPathFollowingConfigured() { return Constants.foresightTuned; }
+
+    public Command followPath(Path path) {
         // Ivy's Pedro factory starts/tests the follower, but supplies no ownership or cleanup.
         return follow(follower, path)
                 .requiring(this)
                 .setStart(() -> {
+                    if (!isPathFollowingConfigured()) {
+                        stop();
+                        throw new IllegalStateException("Run Pedro AutoTune and configure Foresight before following paths");
+                    }
                     followingControlEnabled = true;
-                    follower.followPath(path, follower.getMaxPowerScaling(), follower.constants.automaticHoldEnd);
+                    follower.follow(path);
                 })
+                // Ivy 1.1's default completes at the parametric endpoint. A sequence should wait
+                // for v3's end hold to settle (or IDLE when holdEnd is explicitly disabled).
+                .setDone(() -> follower.idle() || (follower.holding() && !follower.isBusy()))
                 .setEnd(condition -> {
                     if (condition != EndCondition.NATURALLY) stopFollowing();
                 });
@@ -163,12 +169,12 @@ public class Drivetrain {
         try {
             // During an explicit calibration, sample only; never run drive controllers.
             if (calibrationPending || !followingControlEnabled) {
-                follower.updatePose();
-                follower.updateDrivetrain(); // refresh configured motor directions without drive output
+                follower.localizer.update();
             }
             else follower.update();
             localizationStatus = String.valueOf(pinpoint.getDeviceStatus());
-            if (!Constants.isFinitePose(follower.getPose())) localizationStatus = "NON_FINITE_POSE";
+            if (!Constants.isFinitePose(follower.pose()) || !Constants.isFiniteVelocity(follower.velocity()))
+                localizationStatus = "NON_FINITE_POSE_OR_VELOCITY";
             if (calibrationPending && clock.getAsLong() - calibrationStarted >= CALIBRATION_MIN_NANOS
                     && "READY".equals(localizationStatus)) calibrationPending = false;
         } catch (Constants.LocalizationNotReady fault) {
@@ -176,14 +182,14 @@ public class Drivetrain {
         }
         localizationSampleSeen = true;
         lastLocalizationSample = clock.getAsLong();
-        if (isLocalizationReady()) poseTransfer = follower.getPose();
+        if (isLocalizationReady()) poseTransfer = follower.pose();
         else stop();
 
         telemetry.addData("Pinpoint Status", getLocalizationStatus());
 
-        telemetry.addData("Drivetrain X", follower.getPose().getX());
-        telemetry.addData("Drivetrain Y", follower.getPose().getY());
-        telemetry.addData("Drivetrain Heading", Math.toDegrees(follower.getHeading()));
+        telemetry.addData("Drivetrain X", follower.pose().x());
+        telemetry.addData("Drivetrain Y", follower.pose().y());
+        telemetry.addData("Drivetrain Heading", Math.toDegrees(follower.pose().heading()));
         telemetry.addData("Drivetrain Heading Locked", lockHeading);
         telemetry.addData("Drivetrain Heading Target", Math.toDegrees(headingTargetRadians));
     }
@@ -192,7 +198,7 @@ public class Drivetrain {
     public boolean isLocalizationReady() {
         return localizationSampleSeen && !calibrationPending && "READY".equals(localizationStatus)
                 && clock.getAsLong() - lastLocalizationSample <= MAX_SAMPLE_AGE_NANOS
-                && Constants.isFinitePose(follower.getPose());
+                && Constants.isFinitePose(follower.pose()) && Constants.isFiniteVelocity(follower.velocity());
     }
 
     public String getLocalizationStatus() {
@@ -214,7 +220,13 @@ public class Drivetrain {
     /** Cancels Pedro's active path or end hold without changing localization. */
     public void stopFollowing() {
         followingControlEnabled = false;
-        follower.breakFollowing();
+        follower.stop();
+        // Pedro 3 stop() changes the mode; motor zeroing otherwise waits for update().
+        follower.drivetrain.stop();
+        frontLeft.setPower(0);
+        frontRight.setPower(0);
+        backLeft.setPower(0);
+        backRight.setPower(0);
         frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);

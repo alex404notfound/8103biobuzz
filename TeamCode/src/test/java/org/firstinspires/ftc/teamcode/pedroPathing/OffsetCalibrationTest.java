@@ -38,4 +38,14 @@ public class OffsetCalibrationTest {
         assertEquals(-6.0, result.strafePodX, EPSILON);
         assertEquals(4.0, result.forwardPodY, EPSILON);
     }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void nonfinitePositionCannotBecomeAnOffsetResult() {
+        OffsetCalibration.calculate(Double.NaN, 0, Math.PI);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void fullRotationCannotProduceADivisionByZeroOffset() {
+        OffsetCalibration.calculate(0, 0, 2 * Math.PI);
+    }
 }

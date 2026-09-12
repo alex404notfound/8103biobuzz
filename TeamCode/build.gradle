@@ -7,12 +7,17 @@ buildscript {
         maven { url = 'https://repo.dairy.foundation/releases' }
     }
     dependencies {
-        classpath 'dev.frozenmilk:Load:0.2.4'
+        classpath 'dev.frozenmilk:Load:0.3.0'
     }
 }
 
 apply plugin: 'com.android.application'
 apply plugin: 'dev.frozenmilk.sinister.sloth.load'
+
+// push.sh / push.ps1 own the connection and select exactly one robot.
+load {
+    autoconnect = dev.frozenmilk.sinister.sloth.AutoConnect.valueOf('NEVER')
+}
 
 apply from: '../build.common.gradle'
 apply from: '../build.dependencies.gradle'
@@ -43,21 +48,28 @@ configurations.configureEach {
 dependencies {
     implementation project(':FtcRobotController')
 
-    implementation 'dev.frozenmilk.sinister:Sloth:0.2.4'
-    implementation 'com.acmerobotics.slothboard:dashboard:0.2.4+0.5.1'
-    implementation 'com.bylazar.sloth:fullpanels:0.2.4.1+1.0.12'
-    implementation 'com.pedropathing:ftc:2.1.0-alpha.2'
-    implementation 'com.pedropathing:telemetry:1.0.0'
-    implementation 'com.pedropathing:ivy:1.0.0'
+    implementation 'dev.frozenmilk.sinister:Sloth:0.3.0'
+    implementation 'com.acmerobotics.slothboard:dashboard:0.3.0+0.6.0'
+    // Its scanner APIs remain compatible; its metadata pins the old runtime.
+    // Use the explicit Sloth 0.3 dependency above. See docs/DEPENDENCIES.md.
+    implementation('com.bylazar.sloth:fullpanels:0.2.4.1+1.0.12') {
+        exclude group: 'dev.frozenmilk.sinister', module: 'Sloth'
+    }
+    implementation 'com.pedropathing:revhub:3.0.0'
+    implementation 'com.pedropathing:tuning:1.0.0'
+    implementation 'com.pedropathing.ivy:core:1.1.0'
+    implementation 'com.pedropathing.ivy:pedro:1.1.0'
     implementation 'org.ftclib.ftclib:core:2.1.1'
 
     testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.mockito:mockito-core:4.11.0'
-    testImplementation 'org.json:json:20240303'
+    // Preserve the existing subclass mock behavior when updating Mockito 5.
+    testImplementation 'org.mockito:mockito-subclass:5.23.0'
+    testImplementation 'org.json:json:20260814'
 }
 
-// Load 0.2.4 uses Project.exec(), removed in Gradle 9. Keep its artifact format
-// and task dependencies, and replace only the two actions that invoke ADB.
+// Keep Load 0.3's tasks and rotating reload files, with explicit ADB targeting.
+// Its stock actions allow implicit device selection and check "lock" although
+// the runtime creates "sloth.lock". All commands below require ANDROID_SERIAL.
 abstract class SlothExecServices {
     @javax.inject.Inject
     abstract org.gradle.process.ExecOperations getExecOperations()
@@ -70,13 +82,15 @@ def runSlothAdb = { task, arguments ->
         throw new GradleException('ANDROID_SERIAL is required. Use push.sh or push.ps1 to select the robot.')
     }
     def stderr = new ByteArrayOutputStream()
+    def stdout = new ByteArrayOutputStream()
     def result = slothExec.execOperations.exec { spec ->
         spec.commandLine(([task.adbExecutable.get().asFile.absolutePath, '-s', serial] + arguments)
                 .collect { it.toString() })
         spec.ignoreExitValue = true
         spec.errorOutput = stderr
+        spec.standardOutput = stdout
     }
-    [result.exitValue, stderr.toString('UTF-8')]
+    [result.exitValue, stderr.toString('UTF-8'), stdout.toString('UTF-8')]
 }
 
 tasks.named('deploySloth').configure {
@@ -84,7 +98,7 @@ tasks.named('deploySloth').configure {
     doLast { task ->
         def location = task.deployLocation.get()
         def checkLock = {
-            def result = runSlothAdb(task, ['shell', "test ! -f ${location}/lock"])
+            def result = runSlothAdb(task, ['shell', "test ! -f ${location}/sloth.lock"])
             if (result[1].trim()) {
                 throw new GradleException(result[1])
             }
@@ -94,7 +108,7 @@ tasks.named('deploySloth').configure {
             throw new GradleException('Sloth is still loading (lock file exists). Wait for the previous load or restart the robot.')
         }
         def bundle = task.outputDir.file("${task.bundleBaseName.get()}.jar").get().asFile.absolutePath
-        def pushed = runSlothAdb(task, ['push', bundle, location])
+        def pushed = runSlothAdb(task, ['push', bundle, "${location}/${System.nanoTime()}.jar"])
         if (pushed[0] != 0) {
             throw new GradleException("Sloth push failed (exit ${pushed[0]}): ${pushed[1]}")
         }
@@ -107,7 +121,20 @@ tasks.named('deploySloth').configure {
 tasks.named('removeSlothRemote').configure {
     setActions([])
     doLast { task ->
-        def result = runSlothAdb(task, ['shell', "rm -f ${task.deployLocation.get()}/loaded.jar"])
+        def location = task.deployLocation.get()
+        def quote = { value -> "'" + value.replace("'", "'\\''") + "'" }
+        def directory = quote(location)
+        def listing = runSlothAdb(task, ['shell', "if [ -d ${directory} ]; then ls -1 ${directory}; fi"])
+        if (listing[0] != 0) {
+            throw new GradleException("Sloth reload listing failed (exit ${listing[0]}): ${listing[1]}")
+        }
+        // Only Sloth's rotating and legacy reload files belong to this cleanup.
+        def reloads = listing[2].readLines().findAll { name ->
+            name in ['loaded.jar', 'to_load.jar', 'sloth.lock'] || name ==~ /-?\d+\.jar/
+        }
+        if (reloads.isEmpty()) return
+        def paths = reloads.collect { name -> quote("${location}/${name}") }.join(' ')
+        def result = runSlothAdb(task, ['shell', "rm -f ${paths}"])
         if (result[0] != 0) {
             throw new GradleException("Sloth cleanup failed (exit ${result[0]}): ${result[1]}")
         }

@@ -18,17 +18,15 @@ public class PinpointCheck extends OpMode {
     private double configuredStrafeOffset;
 
     @Override public void init() {
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConstants.hardwareMapName);
-        pinpoint.setOffsets(Constants.localizerConstants.forwardPodY, Constants.localizerConstants.strafePodX,
-                Constants.localizerConstants.distanceUnit);
-        pinpoint.setEncoderDirections(Constants.localizerConstants.forwardEncoderDirection,
-                Constants.localizerConstants.strafeEncoderDirection);
-        if (Constants.localizerConstants.customEncoderResolution.isPresent())
-            pinpoint.setEncoderResolution(Constants.localizerConstants.customEncoderResolution.getAsDouble(),
-                    Constants.localizerConstants.distanceUnit);
-        else pinpoint.setEncoderResolution(Constants.localizerConstants.encoderResolution);
-        if (Constants.localizerConstants.yawScalar.isPresent())
-            pinpoint.setYawScalar(Constants.localizerConstants.yawScalar.getAsDouble());
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConfig.name.get());
+        pinpoint.setOffsets(Constants.localizerConfig.xPodOffset.get(), Constants.localizerConfig.yPodOffset.get(),
+                Constants.localizerConfig.offsetUnits.get());
+        pinpoint.setEncoderDirections(Constants.localizerConfig.xPodDirection.get(),
+                Constants.localizerConfig.yPodDirection.get());
+        if (Constants.localizerConfig.ticksPerUnit.get().isPresent())
+            pinpoint.setEncoderResolution(Constants.localizerConfig.ticksPerUnit.get().getAsDouble(),
+                    Constants.localizerConfig.encoderResolutionUnit.get());
+        else pinpoint.setEncoderResolution(Constants.localizerConfig.podType.get());
         configuredForwardOffset = pinpoint.getXOffset(DistanceUnit.INCH);
         configuredStrafeOffset = pinpoint.getYOffset(DistanceUnit.INCH);
         telemetry.addLine("Keep robot stationary. In INIT, press X to recalibrate gyro; wait for READY.");
@@ -64,11 +62,11 @@ public class PinpointCheck extends OpMode {
         telemetry.addData("Calibration", calibrationPending ? "KEEP STILL" : "No calibration pending");
         telemetry.addData("Pinpoint Version", pinpoint.getDeviceVersion());
         telemetry.addData("Pinpoint Frequency (Hz)", pinpoint.getFrequency());
-        telemetry.addData("Configured pod resolution", Constants.localizerConstants.customEncoderResolution.isPresent()
-                ? Constants.localizerConstants.customEncoderResolution.getAsDouble() + " ticks/" + Constants.localizerConstants.distanceUnit
-                : Constants.localizerConstants.encoderResolution);
-        telemetry.addData("Forward / strafe direction", Constants.localizerConstants.forwardEncoderDirection + " / "
-                + Constants.localizerConstants.strafeEncoderDirection);
+        telemetry.addData("Configured pod resolution", Constants.localizerConfig.ticksPerUnit.get().isPresent()
+                ? Constants.localizerConfig.ticksPerUnit.get().getAsDouble() + " ticks/" + Constants.localizerConfig.encoderResolutionUnit.get()
+                : Constants.localizerConfig.podType.get());
+        telemetry.addData("Forward / strafe direction", Constants.localizerConfig.xPodDirection.get() + " / "
+                + Constants.localizerConfig.yPodDirection.get());
         telemetry.addData("Live forward / strafe offsets (in)", "%.3f / %.3f", configuredForwardOffset, configuredStrafeOffset);
         telemetry.addData("X / Y (in)", "%.3f / %.3f", pose.getX(DistanceUnit.INCH), pose.getY(DistanceUnit.INCH));
         telemetry.addData("Heading (degrees)", pose.getHeading(AngleUnit.DEGREES));

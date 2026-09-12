@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
 import com.pedropathing.ivy.Scheduler;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -44,7 +45,7 @@ public class LimelightTest {
         when(camera.getLatestResult()).thenReturn(result);
         when(drive.isLocalizationReady()).thenReturn(true);
         when(drive.getPose()).thenReturn(new Pose(0, 0, 0.7));
-        when(drive.getVelocity()).thenReturn(new Pose());
+        when(drive.getVelocity()).thenReturn(Velocity.zero());
         vision.periodic();
         writeHeading.run();
         sampleAt(50, 2);
@@ -63,9 +64,9 @@ public class LimelightTest {
         vision.relocalize().schedule();
         ArgumentCaptor<Pose> pose = ArgumentCaptor.forClass(Pose.class);
         verify(drive).applyVisionTranslation(pose.capture());
-        assertEquals(0.1 * 100 / 2.54, pose.getValue().getX(), 1e-9);
-        assertEquals(0.2 * 100 / 2.54, pose.getValue().getY(), 1e-9);
-        assertEquals(0.7, pose.getValue().getHeading(), 1e-9);
+        assertEquals(0.1 * 100 / 2.54, pose.getValue().x(), 1e-9);
+        assertEquals(0.2 * 100 / 2.54, pose.getValue().y(), 1e-9);
+        assertEquals(0.7, pose.getValue().heading(), 1e-9);
     }
 
     @Test public void absentMegaTag2PayloadCannotBecomeAFalseFieldCenterPose() {
@@ -87,10 +88,10 @@ public class LimelightTest {
 
     @Test public void justStoppedRobotRejectsAStillFreshFrameFromBeforeTheStop() {
         Limelight.enableRelocalization = true;
-        when(drive.getVelocity()).thenReturn(new Pose(40, 0, 0));
+        when(drive.getVelocity()).thenReturn(new Velocity(40, 0, 0));
         vision.periodic();
         now.set(TimeUnit.MILLISECONDS.toNanos(150));
-        when(drive.getVelocity()).thenReturn(new Pose());
+        when(drive.getVelocity()).thenReturn(Velocity.zero());
         vision.periodic();
         writeHeading.run();
         vision.relocalize().schedule();
@@ -103,12 +104,20 @@ public class LimelightTest {
 
     @Test public void movingOrUnhealthyRobotRejectsCorrection() {
         Limelight.enableRelocalization = true;
-        when(drive.getVelocity()).thenReturn(new Pose(5, 0, 0));
+        when(drive.getVelocity()).thenReturn(new Velocity(5, 0, 0));
         vision.relocalize().schedule();
-        when(drive.getVelocity()).thenReturn(new Pose());
+        when(drive.getVelocity()).thenReturn(Velocity.zero());
         when(drive.isLocalizationReady()).thenReturn(false);
         vision.relocalize().schedule();
         verify(drive, never()).applyVisionTranslation(any());
+    }
+
+    @Test public void aFullTurnPerSecondCannotMasqueradeAsZeroAngularVelocity() {
+        Limelight.enableRelocalization = true;
+        when(drive.getVelocity()).thenReturn(new Velocity(0, 0, -2 * Math.PI));
+        vision.relocalize().schedule();
+        verify(drive, never()).applyVisionTranslation(any());
+        assertEquals("Keep the robot stationary for correction", vision.getLastCorrection());
     }
 
     @Test public void missingTagsLargeJumpsAndMalformedNumbersAreRejected() {
@@ -135,9 +144,9 @@ public class LimelightTest {
     }
 
     @Test public void nonfiniteOdometryRestartsTheStationaryDwell() {
-        when(drive.getVelocity()).thenReturn(new Pose(0, 0, Double.NaN));
+        when(drive.getVelocity()).thenReturn(new Velocity(0, 0, Double.NaN));
         vision.periodic();
-        when(drive.getVelocity()).thenReturn(new Pose());
+        when(drive.getVelocity()).thenReturn(Velocity.zero());
         sampleAt(150, 4);
         Limelight.enableRelocalization = true;
         vision.relocalize().schedule();
@@ -153,17 +162,17 @@ public class LimelightTest {
 
     @Test public void consumerRechecksMotionAndDiscardsTheOldStationaryWindow() {
         Limelight.enableRelocalization = true;
-        when(drive.getVelocity()).thenReturn(new Pose(5, 0, 0));
+        when(drive.getVelocity()).thenReturn(new Velocity(5, 0, 0));
         vision.relocalize().schedule();
-        when(drive.getVelocity()).thenReturn(new Pose());
+        when(drive.getVelocity()).thenReturn(Velocity.zero());
         vision.relocalize().schedule();
         verify(drive, never()).applyVisionTranslation(any());
     }
 
     @Test public void timePassingWithoutNewStationarySamplesDoesNotCompleteDwell() {
-        when(drive.getVelocity()).thenReturn(new Pose(5, 0, 0));
+        when(drive.getVelocity()).thenReturn(new Velocity(5, 0, 0));
         vision.periodic();
-        when(drive.getVelocity()).thenReturn(new Pose());
+        when(drive.getVelocity()).thenReturn(Velocity.zero());
         sampleAt(150, 4);
         now.set(TimeUnit.MILLISECONDS.toNanos(250));
         Limelight.enableRelocalization = true;

@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
 
 /**
  * One home for all field geometry, authored in the RED frame.

@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes.autos;
 
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.Scheduler;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -23,6 +23,17 @@ public class AutoLocalizationTest {
         auto.init();
         auto.start();
         assertEquals(0, auto.builds);
+        verify(auto.testRobot).stop();
+    }
+
+    @Test public void untunedForesightDoesNotBuildOrScheduleAutonomous() throws Exception {
+        TestAuto auto = new TestAuto();
+        when(auto.drive.isLocalizationReady()).thenReturn(true);
+        when(auto.drive.isPathFollowingConfigured()).thenReturn(false);
+        auto.init();
+        auto.start();
+        assertEquals(0, auto.builds);
+        assertFalse(auto.action.isScheduled());
         verify(auto.testRobot).stop();
     }
 
@@ -56,6 +67,7 @@ public class AutoLocalizationTest {
                 instant(() -> nextActions++));
         TestAuto() throws Exception {
             super(Alliance.RED);
+            when(drive.isPathFollowingConfigured()).thenReturn(true);
             setField("drivetrain", drive);
             setField("telemetry", mock(Telemetry.class));
         }
@@ -65,7 +77,7 @@ public class AutoLocalizationTest {
             field.set(testRobot, value);
         }
         @Override protected Robot createRobot() { return testRobot; }
-        @Override protected Pose startingPose() { return new Pose(); }
+        @Override protected Pose startingPose() { return Pose.zero(); }
         @Override protected Command buildSequence() { builds++; return action; }
     }
 }

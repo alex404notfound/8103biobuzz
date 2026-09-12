@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes.autos;
 
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
 import com.pedropathing.ivy.Command;
 
 import org.firstinspires.ftc.teamcode.robot.Alliance;
@@ -62,6 +62,10 @@ public abstract class AutoOpMode extends RobotOpMode {
 
     @Override
     protected final void onStart() {
+        if (!robot.drivetrain.isPathFollowingConfigured()) {
+            abort("Run Pedro AutoTune and configure Foresight before autonomous");
+            return;
+        }
         if (!robot.drivetrain.isLocalizationReady()) { abortForLocalization(); return; }
         activeSequence = buildSequence();
         schedule(activeSequence);
@@ -70,6 +74,8 @@ public abstract class AutoOpMode extends RobotOpMode {
     @Override
     protected final void onInitLoop() {
         robot.telemetry.addData("Auto Pinpoint", robot.drivetrain.getLocalizationStatus());
+        robot.telemetry.addData("Auto Foresight", robot.drivetrain.isPathFollowingConfigured()
+                ? "Configured" : "Run AutoTune; enter measurements in Constants");
         robot.telemetry.addLine("Keep robot still; press X in INIT to recalibrate Pinpoint. Wait for READY.");
         if (gamepad1.xWasPressed()) robot.drivetrain.recalibrateLocalization();
         onAutoInitLoop();
@@ -88,11 +94,15 @@ public abstract class AutoOpMode extends RobotOpMode {
     protected void onAutoLoop() { }
 
     private void abortForLocalization() {
+        abort(robot.drivetrain.getLocalizationStatus());
+    }
+
+    private void abort(String reason) {
         aborted = true;
-        abortReason = robot.drivetrain.getLocalizationStatus();
+        abortReason = reason;
         if (activeSequence != null) activeSequence.cancel();
         robot.stop();
-        robot.telemetry.addData("Auto aborted", robot.drivetrain.getLocalizationStatus());
+        robot.telemetry.addData("Auto aborted", abortReason);
     }
 
     @Override

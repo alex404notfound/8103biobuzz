@@ -1,20 +1,35 @@
 # 8103 BIOBUZZ
 
-Open this folder in Android Studio, or build without changing your global Java setup:
+This is the season project: **FTC SDK 12.0.0, Pedro 3.0.0, Ivy 1.1.0 and
+AutoTune 1.0.0**. FTCLib core 2.1.1, Sloth 0.3.0, Dashboard and Panels are included.
+See [all dependency versions](docs/DEPENDENCIES.md).
+
+Build from this folder:
 
 ```sh
 python3 tools/run_gradle.py --doctor
 python3 tools/run_gradle.py
 ```
 
-Robot code is in `TeamCode/src/main/java`. Installed packages include Pedro
-Pathing 2.1.0-alpha.2, Ivy 1.0.0, FTCLib core 2.1.1, Sloth 0.2.4, and the matching
-Dashboard/Panels variants. FTC SDK is **12.0.0**.
+The runner selects the installed **JDK 25** required by Load 0.3.0. This folder's
+local Android Studio settings also select that JDK and the installed Android SDK.
+On another computer, set **Settings → Build, Execution, Deployment → Build Tools
+→ Gradle → Gradle JDK** to JDK 25. On this computer its home is
+`~/Downloads/8103Template/.tools/jdk25/Contents/Home`.
 
-Read [the tuning guide](docs/TUNING.md) for hardware configurations and checks.
-The first robot deployment requires `python3 tools/deploy.py --full` after joining
-robot Wi-Fi. Use Driver Station 12.0. Nothing in the build commands contacts a robot.
+**All robot constants are setup examples, not measurements.** Confirm wiring,
+motor directions and pod type, then follow [the tuning guide](docs/TUNING.md).
+Autonomous paths remain disabled until the Foresight measurements are entered
+and `Constants.foresightTuned` is set to `true`. TeleOp and calibration work before
+that. AutoTune is at `http://192.168.43.1:10158` while connected to robot Wi-Fi.
 
-BIOBUZZ tags move: keep Limelight absolute-pose correction disabled for game tags.
-Motor/pod tuning and the example autonomous coordinates still need your robot and
-field measurements. [Season repository workflow](docs/NEW_SEASON.md).
+The first deployment after this library upgrade requires a **full install**:
+
+```sh
+python3 tools/deploy.py --full
+```
+
+Use Driver Station 12.0. Build commands do not contact a robot.
+Robot code is under `TeamCode/src/main/java`. BIOBUZZ tags move, so Limelight
+absolute-pose correction stays disabled for game tags.
+[Project locations](docs/NEW_SEASON.md).

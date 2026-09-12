@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.math;
 
-import com.pedropathing.geometry.Pose;
+import com.pedropathing.math.Pose;
 
 /** Calibrated rigid transform from the Limelight field map into the Pedro field frame. */
 public final class VisionFrame {
