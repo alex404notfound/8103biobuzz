@@ -1,7 +1,7 @@
 # Team 8103: setup and tuning
 
-Open **`~/Downloads/8103biobuzz`** on the prepared computer. All commands in
-this guide run from that project's root. Edit robot code under
+Open your local **8103biobuzz checkout**. All commands in this guide run from
+that project's root. Edit robot code under
 `TeamCode/src/main/java/org/firstinspires/ftc/teamcode`.
 
 ## Build and install
@@ -36,11 +36,14 @@ This BIOBUZZ project uses SDK **12.0.0**. Install the **12.0 Driver Station** fo
 this season. The IDE requirement is Android Studio **Narwhal 3 Feature Drop or
 later**. [Official release notes](https://github.com/FIRST-Tech-Challenge/FtcRobotController/releases/tag/v12.0).
 
-Local tool locations are in ignored `.ftc-tools.json`. If you move the project,
-update its `tools_home` or set `FTC_TOOLS_HOME`. On another computer install the
-matching Java/Android tools and point the runner at a directory containing
-`jdk25` (a JDK home or macOS bundle; required by Load 0.3.0), `sdk`, and writable `gradle-home` and
-`android-user` folders.
+Install Python 3, JDK 21, and the Android SDK packages listed in
+[START_HERE.md](../START_HERE.md). The runner defaults to this checkout's `.tools`
+directory. To share tools, set `FTC_TOOLS_HOME` or create an ignored
+`.ftc-tools.json` with an absolute `tools_home` path. The selected tools directory
+must contain `jdk21` (a JDK home or macOS bundle) and `sdk`; an existing `jdk25`
+is also supported when `jdk21` is absent. The runner creates `gradle-home` and
+`android-user` there, so the tools directory must be writable. Configure Android
+Studio's Gradle JDK and SDK location separately on each computer.
 
 ## Choose the hardware configuration
 
@@ -146,13 +149,13 @@ Set these field-frame values using the actual map and your Pedro coordinate conv
 | --- | --- |
 | `frameOriginXInches`, `frameOriginYInches` | Pedro coordinates of the Limelight map's origin |
 | `frameRotationDegrees` | Counterclockwise rotation from map axes into Pedro axes |
-| `enableRelocalization` | Explicit opt-in after checking the transform; defaults to false |
+| `enableRelocalization` | Fixed, surveyed practice tags only, after checking the transform; false for BIOBUZZ game tags |
 
 The conversion is `Pedro XY = origin + rotate(map XY converted from meters to
 inches)`. The inverse rotation converts Pinpoint heading to the yaw sent to
 MegaTag2. Verify several known positions and headings, including both sides of
 the field. The zero origin/rotation defaults are **uncalibrated values**, not a
-claim about the next game's map. Physical vision poses are not mirrored by alliance.
+claim about the BIOBUZZ map. Physical vision poses are not transformed by alliance.
 
 Only then enable relocalization and press **Circle** after START to request one
 translation correction. It keeps the Pinpoint heading and stops any active path
@@ -167,10 +170,35 @@ command; it does not continuously fuse camera measurements into Pedro.
 
 ## 4. Prepare autonomous for the actual game
 
-Replace `robot/FieldConstants.java` and the start/path geometry in
-`opmodes/autos/SkeletonAuto.java`. Their current coordinates and 141.5-inch field
-width are DECODE placeholders. Confirm the new field's coordinate convention
-and alliance symmetry before retaining `PoseMirror`'s X reflection.
+`robot/FieldConstants.java` uses the **nominal 144 by 144 inch BIOBUZZ planning
+grid**, with center `(72, 72)`. FIRST specifies approximate field dimensions;
+tile sizes and perimeter construction vary, so these are not surveyed wall
+distances. [BIOBUZZ manual, sections 9.1-9.2](https://ftc-resources.firstinspires.org/ftc/game/manual-09)
+([2027 season archive](https://ftc-resources.firstinspires.org/ftc/archive/2027/game/manual-09)).
+
+The origin is the bottom-left with the audience at the bottom, red on the left,
+X increasing right and Y increasing up. Heading zero faces +X and positive
+rotation is counterclockwise. This matches [Pedro's coordinate convention](https://pedropathing.com/docs/pathing/reference/coordinates).
+BIOBUZZ's alliance layout is a **180-degree rotation**: red garden A1 maps to
+blue F6, and red loading-zone tile A5 maps to blue F2. `PoseMirror` therefore
+maps `(x, y, heading)` to `(144-x, 144-y, heading+180 degrees)`; the autonomous
+heading helper and TeleOp heading lock use the same rotation. See the
+[official field setup guide, pages 8 and 14-15](https://ftc-resources.firstinspires.org/ftc/field/eventfieldguide)
+([2027 season archive, V1.0](https://ftc-resources.firstinspires.org/ftc/archive/2027/field/eventfieldguide)).
+
+`Red Corner` and `Blue Corner` are disabled because they would otherwise publish
+the old placeholder start pose. Measure this robot's actual BIOBUZZ starting
+pose, update `RED_CORNER_START`, and validate the rotated blue pose on the field.
+Then set `START_POSE_CONFIGURED = true` in `FieldConstants` and remove `@Disabled` from
+`opmodes/localizers/RedCorner.java` and `BlueCorner.java` to make them selectable.
+The TeleOp operator's Cross reset also stays disabled until that flag is set.
+There is no universal robot-center start pose: G304 allows multiple positions
+touching the perimeter on the robot's alliance half, outside the loading zone
+and clear of flowers. The chosen pose depends on this robot's dimensions and
+placement. [BIOBUZZ manual, G304](https://ftc-resources.firstinspires.org/ftc/game/cm-html)
+([2027 season game-rules archive](https://ftc-resources.firstinspires.org/ftc/archive/2027/game/manual-11)).
+The red/blue skeleton autos are listed under **Examples** and still use practice
+paths; replace their geometry before using them for a match.
 
 Author shared auto geometry once, then use `transformed()` and
 `transformedHeading()` for the red/blue pair. Build actions in `buildSequence()`;
@@ -195,8 +223,6 @@ separate desktop tuning application. Dashboard/Panels provide the live tuning UI
 [FTCLib project](https://github.com/FTCLib/FTCLib).
 
 
-A separate checkout of the official FTCLib **v2.1.1** source is installed on this
-computer at `~/Downloads/8103Template/.tools/ftclib`. It is for examples/reference;
-the robot uses the published Gradle dependency. FTCLib is a library, not a desktop
-application. Ivy core + Pedro integration **1.1.0** is the sole command framework;
-NextFTC is not installed.
+The robot uses the published FTCLib **2.1.1** Gradle dependency; a local source
+checkout is optional for examples and reference. Ivy core + Pedro integration
+**1.1.1** is the sole command framework; NextFTC is not included.

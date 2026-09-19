@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- Sensor-only ANALOG_HUE_CALIBRATION example. Verify sensor pin 0 reaches analog
+     channel 0; older sensor revisions need the mode switch set away from connector. -->
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
+        <LynxModule name="Control Hub" port="173">
+            <AnalogInput name="colorHue" port="0" />
+        </LynxModule>
+    </LynxUsbDevice>
+</Robot>

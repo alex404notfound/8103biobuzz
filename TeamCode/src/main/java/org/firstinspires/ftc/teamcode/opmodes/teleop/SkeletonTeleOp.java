@@ -37,18 +37,20 @@ public class SkeletonTeleOp extends RobotOpMode {
 
         // Live example bindings, showing the edge-detection convention:
         if (gamepad1.triangleWasPressed() && robot.exampleSubsystem != null) robot.exampleSubsystem.toggle().schedule();
-        if (gamepad1.squareWasPressed()) robot.drivetrain.lockHeading(90); // 90 mirrors to itself
-        // Vision-enabled profile only; correction stays disabled until calibration is confirmed.
+        if (gamepad1.squareWasPressed()) robot.drivetrain.lockHeading(Alliance.current == Alliance.RED ? 90 : 270);
+        // Vision-enabled profile only; correction is reserved for fixed, surveyed practice tags.
         if (gamepad1.circleWasPressed() && robot.limelight != null) robot.limelight.relocalize().schedule();
 
         // Operator overrides:
         if (gamepad2.leftBumperWasPressed()) Alliance.current = Alliance.RED;
         if (gamepad2.rightBumperWasPressed()) Alliance.current = Alliance.BLUE;
-        if (gamepad2.crossWasPressed()) robot.drivetrain.setPose(
-                Alliance.current == Alliance.RED
-                        ? FieldConstants.RED_CORNER_START
-                        : mirror(FieldConstants.RED_CORNER_START)
-        );
+        if (gamepad2.crossWasPressed() && FieldConstants.START_POSE_CONFIGURED) {
+            robot.drivetrain.setPose(Alliance.current == Alliance.RED
+                    ? FieldConstants.RED_CORNER_START : mirror(FieldConstants.RED_CORNER_START));
+        }
+        if (!FieldConstants.START_POSE_CONFIGURED) {
+            robot.telemetry.addLine("Corner reset disabled: measure the start pose and set START_POSE_CONFIGURED.");
+        }
 
         robot.telemetry.addData("Alliance", Alliance.current);
     }

@@ -22,7 +22,10 @@ public class Limelight {
     /** Read at INIT. Configure this AprilTag pipeline and camera extrinsics in the camera UI. */
     public static int pipelineIndex = 0;
     public static double maxStalenessMs = 100;
-    /** Enable only after checking the tag map, camera extrinsics and field frame on hardware. */
+    /**
+     * BIOBUZZ tags move: keep false for game tags. Enable only for fixed, surveyed practice tags
+     * after checking their map, camera extrinsics and field frame on hardware.
+     */
     public static boolean enableRelocalization = false;
     public static double frameOriginXInches = 0;
     public static double frameOriginYInches = 0;
@@ -43,10 +46,17 @@ public class Limelight {
     private boolean stationarySampleSeen;
     private long stationarySinceNanos;
     private long lastStationarySampleNanos;
-    private String lastCorrection = "Disabled until field/camera calibration is verified";
+    private static final String RELOCALIZATION_DISABLED =
+            "Relocalization disabled: BIOBUZZ tags move; fixed, surveyed practice tags only";
+    private String lastCorrection = RELOCALIZATION_DISABLED;
 
     public Limelight(HardwareMap hardwareMap, Drivetrain drivetrain, Telemetry telemetry) {
         this(hardwareMap.get(Limelight3A.class, "limelight"), drivetrain, telemetry, pipelineIndex);
+    }
+
+    /** Relative AprilTag observations for a bench prototype; no drivetrain or field pose needed. */
+    public Limelight(HardwareMap hardwareMap, Telemetry telemetry) {
+        this(hardwareMap, null, telemetry);
     }
 
     private Limelight(Limelight3A camera, Drivetrain drivetrain, Telemetry telemetry, int pipeline) {
@@ -72,16 +82,23 @@ public class Limelight {
         return orientationPublisher.isReady() ? results.getFresh(maxStalenessMs) : null;
     }
 
+    /** Read immediately after getFreshResult on the same loop; never mix SDK epoch time with nanoTime. */
+    public double getFreshResultAgeMs() {
+        return getFreshResult() == null ? Double.NaN : results.getAgeMs();
+    }
+
     public String getLastCorrection() { return lastCorrection; }
 
     /** Takes drive ownership and, after validation, corrects stationary translation only. */
     public Command relocalize() {
-        if (!enableRelocalization) return instant(() -> lastCorrection = "Relocalization disabled");
+        if (!enableRelocalization) return instant(() -> lastCorrection = RELOCALIZATION_DISABLED);
+        if (drivetrain == null) return instant(() -> lastCorrection = "Relative vision only; no drivetrain");
         return instant(this::correctTranslation).requiring(drivetrain);
     }
 
     private void correctTranslation() {
-        if (!enableRelocalization) { lastCorrection = "Relocalization disabled"; return; }
+        if (!enableRelocalization) { lastCorrection = RELOCALIZATION_DISABLED; return; }
+        if (drivetrain == null) { lastCorrection = "Relative vision only; no drivetrain"; return; }
         if (!drivetrain.isLocalizationReady()) {
             stationarySampleSeen = false;
             lastCorrection = "Pinpoint is not ready";
@@ -189,8 +206,8 @@ public class Limelight {
     }
 
     public void periodic() {
-        observeStationarity();
-        if (drivetrain.isLocalizationReady()) {
+        if (drivetrain != null) observeStationarity();
+        if (drivetrain != null && drivetrain.isLocalizationReady()) {
             try {
                 orientationPublisher.publish(frame().toCameraHeading(drivetrain.getHeading()));
             } catch (IllegalArgumentException badFrame) {

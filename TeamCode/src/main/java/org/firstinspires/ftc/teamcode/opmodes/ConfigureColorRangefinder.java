@@ -1,19 +1,120 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple;
 
 
-//@TeleOp
+/** One-time sensor programming. See docs/BRUSHLAND_COLOR_TEST.md before rewiring. */
+@Config
+@TeleOp(name = "Brushland Configure", group = "Prototyping")
 public class ConfigureColorRangefinder extends LinearOpMode {
+    public enum OutputMode { DIGITAL_BIOBUZZ, ANALOG_HUE_CALIBRATION }
+
+    public static OutputMode outputMode = OutputMode.DIGITAL_BIOBUZZ;
+    // Manufacturer's previous red/yellow/blue example, NOT measured BIOBUZZ values.
+    // Measure the actual balls with Brushland Hue Check, then adjust these degrees.
+    public static double blueMinDegrees = 180, blueMaxDegrees = 250;
+    public static double yellowMinDegrees = 55, yellowMaxDegrees = 90;
+    public static double redMinDegrees = 0, redMaxDegrees = 50;
+    public static int maxDistanceMm = 20;
+
     @Override
     public void runOpMode() throws InterruptedException {
         ColorRangefinder crf = new ColorRangefinder(hardwareMap.get(RevColorSensorV3.class, "Color"));
+        telemetry.setMsTransmissionInterval(100);
+        while (!isStarted() && !isStopRequested()) {
+            telemetry.addData("Output mode", outputMode);
+            telemetry.addData("Blue / yellow / red hue (degrees)", "%.1f..%.1f / %.1f..%.1f / %.1f..%.1f",
+                    blueMinDegrees, blueMaxDegrees, yellowMinDegrees, yellowMaxDegrees,
+                    redMinDegrees, redMaxDegrees);
+            telemetry.addData("Distance gate (mm)", maxDistanceMm);
+            telemetry.addLine("I2C: REV Color Sensor V3 named Color. Reset before EACH programming run.");
+            telemetry.addLine("START saves once. Defaults require calibration with actual BIOBUZZ balls.");
+            telemetry.update();
+            sleep(100);
+        }
         waitForStart();
-        crf.setPin0Analog(ColorRangefinder.AnalogMode.HSV);
-        crf.setPin1Digital(ColorRangefinder.DigitalMode.DISTANCE, 0, 10);
+        if (isStopRequested()) return;
+        try {
+            writeConfiguration(crf);
+        } catch (IllegalArgumentException invalid) {
+            telemetry.addData("NOT WRITTEN", invalid.getMessage());
+            telemetry.update();
+            while (opModeIsActive()) sleep(100);
+            return;
+        }
+        telemetry.addLine("Writes completed. Confirm the sensor's two LED blinks.");
+        telemetry.addLine("STOP, then unplug/reconnect to the digital or analog port for the chosen mode.");
+        telemetry.addLine("Use the matching robot config. Reset to I2C before programming again.");
+        telemetry.update();
+        while (opModeIsActive()) sleep(100);
+    }
+
+    static void writeConfiguration(ColorRangefinder crf) {
+        // Snapshot and validate EVERYTHING before any persistent write.
+        OutputMode mode = outputMode;
+        int distance = maxDistanceMm;
+        double[][] ranges = {{blueMinDegrees, blueMaxDegrees},
+                {yellowMinDegrees, yellowMaxDegrees}, {redMinDegrees, redMaxDegrees}};
+        if (mode == null) throw new IllegalArgumentException("Choose an output mode.");
+        if (distance < 1 || distance > 100) throw new IllegalArgumentException("Distance must be 1..100 mm.");
+        if (mode == OutputMode.ANALOG_HUE_CALIBRATION) {
+            // Calibration must remain usable even while the digital ranges need fixing.
+            crf.setPin0Analog(ColorRangefinder.AnalogMode.HSV);
+            // Both pins must leave I2C. Pin 1 isn't needed by the analog-only calibration reader.
+            crf.setPin1Digital(ColorRangefinder.DigitalMode.HSV, 0, 255);
+            crf.setPin1DigitalMaxDistance(ColorRangefinder.DigitalMode.HSV, distance);
+            return;
+        }
+        for (double[] range : ranges) {
+            if (!Double.isFinite(range[0]) || !Double.isFinite(range[1])
+                    || range[0] < 0 || range[0] >= 360 || range[1] <= 0 || range[1] > 360
+                    || range[0] == range[1]) {
+                throw new IllegalArgumentException("Hue endpoints must be distinct in 0..360 degrees.");
+            }
+            for (double[] interval : intervals(range)) {
+                if (rawHue(interval[0]) == rawHue(interval[1])) {
+                    throw new IllegalArgumentException("Hue range is narrower than sensor resolution.");
+                }
+            }
+        }
+        for (int i = 0; i < ranges.length; i++) {
+            for (int j = i + 1; j < ranges.length; j++) {
+                for (double[] a : intervals(ranges[i])) {
+                    for (double[] b : intervals(ranges[j])) {
+                        // Include 16-bit rounding and the circular 0/360 endpoint in the check.
+                        if (Math.max(rawHue(a[0]), rawHue(b[0])) <= Math.min(rawHue(a[1]), rawHue(b[1]))
+                                || (a[0] == 0 && b[1] == 360) || (b[0] == 0 && a[1] == 360)) {
+                            throw new IllegalArgumentException("Color ranges must have gaps; overlapping ranges alias colors.");
+                        }
+                    }
+                }
+            }
+        }
+        writeHue(crf, true, ranges[0]);   // pin 0: blue OR yellow
+        writeHue(crf, true, ranges[1]);
+        crf.setPin0DigitalMaxDistance(ColorRangefinder.DigitalMode.HSV, distance);
+        writeHue(crf, false, ranges[2]);  // pin 1: red OR yellow
+        writeHue(crf, false, ranges[1]);
+        crf.setPin1DigitalMaxDistance(ColorRangefinder.DigitalMode.HSV, distance);
+    }
+
+    private static long rawHue(double degrees) { return Math.round(degrees / 360.0 * 65535); }
+
+    private static double[][] intervals(double[] range) {
+        return range[0] < range[1] ? new double[][]{range}
+                : new double[][]{{0, range[1]}, {range[0], 360}};
+    }
+
+    private static void writeHue(ColorRangefinder crf, boolean pin0, double[] range) {
+        for (double[] interval : intervals(range)) {
+            double lo = interval[0] / 360.0 * 255, hi = interval[1] / 360.0 * 255;
+            if (pin0) crf.setPin0Digital(ColorRangefinder.DigitalMode.HSV, lo, hi);
+            else crf.setPin1Digital(ColorRangefinder.DigitalMode.HSV, lo, hi);
+        }
     }
 }
 
@@ -30,12 +131,16 @@ class ColorRangefinder {
     private final I2cDeviceSynchSimple i2c;
 
     public ColorRangefinder(RevColorSensorV3 emulator) {
-        this.i2c = emulator.getDeviceClient();
+        this(emulator.getDeviceClient());
+    }
+
+    ColorRangefinder(I2cDeviceSynchSimple i2c) {
+        this.i2c = i2c;
         this.i2c.enableWriteCoalescing(true);
     }
 
     public static int invertHue(int hue360) {
-        return ((hue360 - 180) % 360);
+        return Math.floorMod(hue360 - 180, 360);
     }
 
     /**
@@ -174,6 +279,7 @@ class ColorRangefinder {
         try {
             Thread.sleep(25);
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }

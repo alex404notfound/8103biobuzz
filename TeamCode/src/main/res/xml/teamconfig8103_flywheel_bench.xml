@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- EXAMPLE: two equally geared, linked goBILDA 6000 RPM motors on Control Hub 0/1.
+     Match actual motor/encoder wiring. No hood, camera, or drivetrain required. -->
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
+        <LynxModule name="Control Hub" port="173">
+            <goBILDA6000RpmMotor name="launcherLeft" port="0" />
+            <goBILDA6000RpmMotor name="launcherRight" port="1" />
+        </LynxModule>
+    </LynxUsbDevice>
+</Robot>

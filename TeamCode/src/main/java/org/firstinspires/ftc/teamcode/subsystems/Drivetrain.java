@@ -77,7 +77,7 @@ public class Drivetrain {
     /**
      * Hold an absolute field heading (degrees, red frame) with the heading PIDF until
      * the driver turns (see unlockHeading / the teleop turn-stick binding).
-     * Blue callers mirror BEFORE calling: lockHeading(180 - redDegrees).
+     * Blue callers rotate BEFORE calling: lockHeading(redDegrees + 180).
      */
     public void lockHeading(double targetDegrees) {
         headingController.reset();
@@ -122,6 +122,15 @@ public class Drivetrain {
 
     public Pose getPose() {
         return follower.pose();
+    }
+
+    /** Linear, clockwise-positive turn for a camera controller; never squares its output. */
+    public void turnInPlace(double clockwisePower) {
+        if (!Double.isFinite(clockwisePower) || !isLocalizationReady()) { stop(); return; }
+        if (followingControlEnabled) stopFollowing();
+        unlockHeading();
+        double turn = Math.max(-1, Math.min(1, clockwisePower));
+        follower.drivetrain.drive(new DrivePowers(0, 0, -turn), true);
     }
 
     /** Robot velocity in field inches/second and radians/second. */

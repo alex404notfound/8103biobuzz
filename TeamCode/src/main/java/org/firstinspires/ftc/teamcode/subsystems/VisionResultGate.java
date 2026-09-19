@@ -36,14 +36,21 @@ final class VisionResultGate {
     }
 
     LLResult getFresh(double maxAgeMs) {
-        if (latest == null || !latest.isValid() || !Double.isFinite(maxAgeMs) || maxAgeMs <= 0) return null;
+        if (!Double.isFinite(maxAgeMs) || maxAgeMs <= 0) return null;
+        double age = getAgeMs();
+        return Double.isFinite(age) && age <= maxAgeMs ? latest : null;
+    }
+
+    /** Estimated exposure age in the local monotonic clock domain, including pipeline latency. */
+    double getAgeMs() {
+        if (latest == null || !latest.isValid()) return Double.NaN;
         double receiptAge = latest.getStaleness();
         double capture = latest.getCaptureLatency();
         double targeting = latest.getTargetingLatency();
         double parse = latest.getParseLatency();
         if (!advanceKnownAge(receiptAge) || !nonnegative(capture)
-                || !nonnegative(targeting) || !nonnegative(parse)) return null;
-        return knownFrameAgeMs + capture + targeting + parse <= maxAgeMs ? latest : null;
+                || !nonnegative(targeting) || !nonnegative(parse)) return Double.NaN;
+        return knownFrameAgeMs + capture + targeting + parse;
     }
 
     /** Repeated HTTP responses must never reduce the age already known for this camera frame. */

@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- EXAMPLE complete robot: launcher motors on Expansion Hub 0/1 and hood servo on 0.
+     Verify hub addresses, motor and servo ports against actual wiring. -->
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
+        <LynxModule name="Expansion Hub 1" port="1">
+            <goBILDA6000RpmMotor name="launcherLeft" port="0" />
+            <goBILDA6000RpmMotor name="launcherRight" port="1" />
+            <Servo name="hood" port="0" />
+        </LynxModule>
+        <LynxModule name="Control Hub" port="173">
+            <goBILDA5201SeriesMotor name="frontLeft" port="0" />
+            <goBILDA5201SeriesMotor name="frontRight" port="1" />
+            <goBILDA5201SeriesMotor name="backLeft" port="2" />
+            <goBILDA5201SeriesMotor name="backRight" port="3" />
+            <goBILDAPinpoint name="pinpoint" port="0" bus="0" />
+        </LynxModule>
+    </LynxUsbDevice>
+    <Limelight3A name="limelight" serialNumber="*" />
+</Robot>

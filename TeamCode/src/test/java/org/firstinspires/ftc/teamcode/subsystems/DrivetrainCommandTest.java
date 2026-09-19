@@ -62,6 +62,23 @@ public class DrivetrainCommandTest {
         verify(motor, never()).setPower(doubleThat(power -> power != 0));
     }
 
+    @Test public void cameraTurnIsLinearClockwiseAndCannotUseStaleLocalization() {
+        drivetrain.periodic();
+        drivetrain.turnInPlace(0.2);
+        org.mockito.ArgumentCaptor<com.pedropathing.drivetrain.DrivePowers> powers =
+                org.mockito.ArgumentCaptor.forClass(com.pedropathing.drivetrain.DrivePowers.class);
+        verify(follower.drivetrain).drive(powers.capture(), eq(true));
+        assertEquals(0, powers.getValue().forward(), 0);
+        assertEquals(0, powers.getValue().strafe(), 0);
+        assertEquals(-0.2, powers.getValue().turn(), 1e-9);
+        clearInvocations(follower.drivetrain);
+        clock.set(251_000_000L);
+        drivetrain.turnInPlace(0.2);
+        verify(follower.drivetrain, never()).drive(any(), anyBoolean());
+        drivetrain.turnInPlace(Double.NaN);
+        verify(follower.drivetrain, never()).drive(any(), anyBoolean());
+    }
+
     @Test public void nonFinitePosePreventsFieldDriveEvenWhenPinpointSaysReady() {
         doReturn(new Pose(Double.NaN, 0, 0)).when(follower).pose();
         drivetrain.periodic();

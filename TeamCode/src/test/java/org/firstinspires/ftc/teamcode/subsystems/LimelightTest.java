@@ -59,6 +59,21 @@ public class LimelightTest {
         verify(drive, never()).applyVisionTranslation(any());
     }
 
+    @Test public void relativeTagFramesDoNotRequireADrivetrainOrHeadingFeed() {
+        vision.stop();
+        ScheduledExecutorService benchWorker = mock(ScheduledExecutorService.class);
+        OrientationPublisher benchPublisher = new OrientationPublisher(() -> true, heading -> true, benchWorker, now::get);
+        ArgumentCaptor<Runnable> configure = ArgumentCaptor.forClass(Runnable.class);
+        verify(benchWorker).scheduleWithFixedDelay(configure.capture(), anyLong(), anyLong(), eq(TimeUnit.MILLISECONDS));
+        configure.getValue().run();
+        vision = new Limelight(camera, null, mock(Telemetry.class), 0, benchPublisher, now::get);
+        vision.periodic();
+        assertSame(result, vision.getFreshResult());
+        Limelight.enableRelocalization = true;
+        vision.relocalize().schedule();
+        assertEquals("Relative vision only; no drivetrain", vision.getLastCorrection());
+    }
+
     @Test public void validStationaryCorrectionUsesMetersAndKeepsOdometryHeading() {
         Limelight.enableRelocalization = true;
         vision.relocalize().schedule();

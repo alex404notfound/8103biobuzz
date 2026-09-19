@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- EXAMPLE only: CR-mode servo on Control Hub servo 0, feedback on analog channel 0.
+     Verify physical wiring. Firmware CR mode must be set using the matching Axon programmer. -->
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
+        <LynxModule name="Control Hub" port="173">
+            <ContinuousRotationServo name="turret" port="0" />
+            <AnalogInput name="turretEncoder" port="0" />
+        </LynxModule>
+    </LynxUsbDevice>
+</Robot>

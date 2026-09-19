@@ -8,6 +8,7 @@ import org.firstinspires.ftc.teamcode.robot.RobotOpMode;
 
 import static com.pedropathing.ivy.Scheduler.schedule;
 import static org.firstinspires.ftc.teamcode.math.PoseMirror.mirror;
+import static org.firstinspires.ftc.teamcode.math.PoseMirror.mirrorHeading;
 
 /**
  * Base class for all autos (spec §7.3). A red/blue pair is two tiny subclasses of
@@ -37,9 +38,10 @@ public abstract class AutoOpMode extends RobotOpMode {
         return alliance == Alliance.RED ? pose : mirror(pose);
     }
 
-    /** A red-frame heading in degrees, mirrored for blue, returned in radians. */
+    /** A red-frame heading in degrees, rotated 180 degrees for blue, returned in radians. */
     protected double transformedHeading(double degrees) {
-        return Math.toRadians(alliance == Alliance.RED ? degrees : 180 - degrees);
+        double heading = Math.toRadians(degrees);
+        return alliance == Alliance.RED ? heading : mirrorHeading(heading);
     }
 
     /** The auto's starting pose (use transformed()/transformedHeading()). */

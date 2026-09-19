@@ -91,7 +91,7 @@ raise SystemExit(int(os.environ.get('GRADLE_EXIT', '0')))
         self.assertTrue(all(call['serial'] == DEFAULT_TARGET for call in calls))
         self.assertTrue(all(call['cwd'] == str(self.project) for call in calls))
         self.assertEqual(str(self.tools / 'sdk'), calls[2]['sdk'])
-        self.assertEqual(str(self.tools / 'jdk25'), calls[2]['java'])
+        self.assertEqual(str(self.tools / 'jdk21'), calls[2]['java'])
         self.assertEqual('unrelated-device', self.env['ANDROID_SERIAL'])
 
     def test_full_mode_uses_explicit_official_install_task_and_selected_port(self):
@@ -142,9 +142,11 @@ raise SystemExit(int(os.environ.get('GRADLE_EXIT', '0')))
                 self.assertEqual([], self.calls())
 
     def test_missing_local_tools_stops_before_connect(self):
+        (self.tools / 'jdk21/bin/java').unlink()
         (self.tools / 'jdk25/bin/java').unlink()
         result = self.run_deploy()
         self.assertEqual(2, result.returncode)
+        self.assertIn('JDK 21', result.stderr)
         self.assertIn('JDK 25', result.stderr)
         self.assertEqual([], self.calls())
 

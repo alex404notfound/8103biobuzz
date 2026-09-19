@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!-- EXAMPLE bench wiring: launcher motors on Control Hub 0/1, positional hood servo on 0.
+     No drive motors. Verify actual ports before selecting this configuration. -->
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
+        <LynxModule name="Control Hub" port="173">
+            <goBILDA6000RpmMotor name="launcherLeft" port="0" />
+            <goBILDA6000RpmMotor name="launcherRight" port="1" />
+            <Servo name="hood" port="0" />
+        </LynxModule>
+    </LynxUsbDevice>
+    <Limelight3A name="limelight" serialNumber="*" />
+</Robot>

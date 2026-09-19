@@ -7,7 +7,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.procedures.MecanumTuner;
 import org.firstinspires.ftc.teamcode.pedroPathing.procedures.PinpointTuner;
 import org.firstinspires.ftc.teamcode.pedroPathing.procedures.Tests;
 
-/** AutoTune 1.0.0 discovers static zero-argument factories returning Procedure exactly. */
+/** AutoTune discovers static zero-argument factories returning Procedure exactly. */
 public final class Tuning {
     private Tuning() { }
 

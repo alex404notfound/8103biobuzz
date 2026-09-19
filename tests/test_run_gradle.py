@@ -86,22 +86,33 @@ raise SystemExit(int(os.environ.get("FTC_TEST_EXIT", "0")))
         self.assertIn("-Dfile.encoding=UTF-8", jvmargs)
         self.assertIn("-Duser.home=" + str(self.tools / "android-user"), jvmargs)
 
-    def test_official_sdk_uses_java25_without_requiring_java8_or_java21(self):
+    def test_official_sdk_uses_java21_without_requiring_java8_or_java25(self):
+        (self.project / "settings.gradle").write_text("include ':FtcRobotController', ':TeamCode'\n")
+        (self.project / "FtcRobotController").mkdir()
+        shutil.rmtree(self.tools / "jdk8")
+        shutil.rmtree(self.tools / "jdk25")
+        result = self.run_runner()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.captured()["args"][-2:], [":TeamCode:testDebugUnitTest", ":TeamCode:assembleDebug"])
+        self.assertEqual(self.captured()["env"]["JAVA_HOME"], str(self.tools / "jdk21"))
+
+    def test_official_sdk_falls_back_to_existing_java25(self):
         (self.project / "settings.gradle").write_text("include ':FtcRobotController', ':TeamCode'\n")
         (self.project / "FtcRobotController").mkdir()
         shutil.rmtree(self.tools / "jdk8")
         shutil.rmtree(self.tools / "jdk21")
         result = self.run_runner()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.captured()["args"][-2:], [":TeamCode:testDebugUnitTest", ":TeamCode:assembleDebug"])
         self.assertEqual(self.captured()["env"]["JAVA_HOME"], str(self.tools / "jdk25"))
 
-    def test_official_sdk_rejects_missing_java25_before_starting_gradle(self):
+    def test_official_sdk_rejects_missing_java21_and_java25_before_starting_gradle(self):
         (self.project / "settings.gradle").write_text("include ':FtcRobotController', ':TeamCode'\n")
         (self.project / "FtcRobotController").mkdir()
+        shutil.rmtree(self.tools / "jdk21")
         shutil.rmtree(self.tools / "jdk25")
         result = self.run_runner("help")
         self.assertNotEqual(result.returncode, 0)
+        self.assertIn("JDK 21", result.stderr)
         self.assertIn("JDK 25", result.stderr)
         self.assertFalse(self.capture.exists())
 
@@ -219,10 +230,10 @@ class WindowsBoundaryTests(unittest.TestCase):
 
     def test_windows_arguments_are_quoted_and_cmd_expansion_is_rejected(self):
         module = self.module()
-        command = module.windows_command(Path("C:/team robot/gradlew.bat"), ["help", "-Pmessage=a&b"], {"COMSPEC": "cmd.exe"})
+        wrapper = Path("C:/team robot/gradlew.bat")
+        command = module.windows_command(wrapper, ["help", "-Pmessage=a&b"], {"COMSPEC": "cmd.exe"})
         self.assertIsInstance(command, str)
-        self.assertTrue(command.startswith('cmd.exe /d /v:off /s /c ""C:/team robot/gradlew.bat"'))
-        self.assertIn('"-Pmessage=a&b"', command)
+        self.assertEqual(command, f'cmd.exe /d /v:off /s /c ""{wrapper}" "help" "-Pmessage=a&b""')
         for unsafe in ('%PATH%', 'hello\nwhoami', 'a"&whoami'):
             with self.subTest(unsafe=unsafe):
                 with self.assertRaises(ValueError):
@@ -236,6 +247,34 @@ class WindowsBoundaryTests(unittest.TestCase):
             (home / "bin/java.exe").touch()
             (home / "bin/javac.exe").touch()
             self.assertEqual(module.find_java_home(home, windows=True), home)
+
+    def test_official_sdk_java_selection_on_current_platform(self):
+        module = self.module()
+        for available, selected in (((21, 25), 21), ((21,), 21), ((25,), 25), ((), None)):
+            with self.subTest(available=available), tempfile.TemporaryDirectory() as temp:
+                project = Path(temp)
+                tools = project / ".tools"
+                (project / "settings.gradle").touch()
+                (project / "FtcRobotController").mkdir()
+                (project / ("gradlew.bat" if os.name == "nt" else "gradlew")).touch()
+                suffix = ".exe" if os.name == "nt" else ""
+                files = ["sdk/platforms/android-30/android.jar",
+                         "sdk/build-tools/35.0.0/source.properties", "sdk/platform-tools/adb" + suffix]
+                files += [f"jdk{version}/bin/{binary}{suffix}"
+                          for version in available for binary in ("java", "javac")]
+                for filename in files:
+                    path = tools / filename
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.touch()
+                    path.chmod(0o755)
+                if selected is None:
+                    with self.assertRaisesRegex(module.SetupError, "JDK 21 .* or JDK 25"):
+                        module.load_setup(project, {})
+                else:
+                    _, _, official, _, environment = module.load_setup(project, {})
+                    self.assertTrue(official)
+                    self.assertEqual(environment["JAVA_HOME"], str(tools / f"jdk{selected}"))
+                self.assertFalse((tools / "jdk8").exists())
 
 
 if __name__ == "__main__":

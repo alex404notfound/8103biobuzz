@@ -53,12 +53,15 @@ def load_setup(project, environment):
     official = (project / "settings.gradle").is_file() and (project / "FtcRobotController").is_dir()
     homes = {v: find_java_home(tools / f"jdk{v}") for v in (8, 21, 25)}
     missing = []
-    # The season's Load 0.3 plugin is published as Java 25 bytecode. Gradle 9.1
-    # supports this JVM; the older standalone Dairy layout still uses Java 21.
-    launcher = 25 if official else 21
+    # Load 0.3.2 runs on Java 21. Keep existing Java 25 setups usable with
+    # Gradle 9.1; the older standalone Dairy layout still requires Java 21 + 8.
+    launcher = next((v for v in (21, 25) if homes[v] is not None), 21) if official else 21
     for version in ((launcher,) if official else (launcher, 8)):
         if homes[version] is None:
-            missing.append(f"JDK {version} with bin/java and bin/javac under {tools / ('jdk' + str(version))}")
+            if official:
+                missing.append(f"JDK 21 (recommended) or JDK 25 with bin/java and bin/javac under {tools / 'jdk21'} or {tools / 'jdk25'}")
+            else:
+                missing.append(f"JDK {version} with bin/java and bin/javac under {tools / ('jdk' + str(version))}")
     sdk = tools / "sdk"
     if not (sdk / "platforms/android-30/android.jar").is_file():
         missing.append(f"Android SDK package platforms;android-30 under {sdk}")
@@ -177,6 +180,7 @@ def main(arguments=None):
     if arguments == ["--help"]:
         print("Usage: python3 tools/run_gradle.py [--doctor | Gradle arguments...]\n"
               "No arguments runs unit tests and assembles the debug APK.\n"
+              "Official FTC SDK: JDK 21 recommended; an existing JDK 25 is also supported.\n"
               "Tools: FTC_TOOLS_HOME, then .ftc-tools.json tools_home, then project/.tools.")
         return 0
     try:

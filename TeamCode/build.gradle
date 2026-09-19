@@ -7,7 +7,7 @@ buildscript {
         maven { url = 'https://repo.dairy.foundation/releases' }
     }
     dependencies {
-        classpath 'dev.frozenmilk:Load:0.3.0'
+        classpath 'dev.frozenmilk:Load:0.3.2'
     }
 }
 
@@ -48,17 +48,13 @@ configurations.configureEach {
 dependencies {
     implementation project(':FtcRobotController')
 
-    implementation 'dev.frozenmilk.sinister:Sloth:0.3.0'
-    implementation 'com.acmerobotics.slothboard:dashboard:0.3.0+0.6.0'
-    // Its scanner APIs remain compatible; its metadata pins the old runtime.
-    // Use the explicit Sloth 0.3 dependency above. See docs/DEPENDENCIES.md.
-    implementation('com.bylazar.sloth:fullpanels:0.2.4.1+1.0.12') {
-        exclude group: 'dev.frozenmilk.sinister', module: 'Sloth'
-    }
-    implementation 'com.pedropathing:revhub:3.0.0'
-    implementation 'com.pedropathing:tuning:1.0.0'
-    implementation 'com.pedropathing.ivy:core:1.1.0'
-    implementation 'com.pedropathing.ivy:pedro:1.1.0'
+    implementation 'dev.frozenmilk.sinister:Sloth:0.3.2'
+    implementation 'com.acmerobotics.slothboard:dashboard:0.3.2+0.6.0'
+    implementation 'com.bylazar.sloth:fullpanels:0.3.2+1.0.13'
+    implementation 'com.pedropathing:revhub:3.0.1'
+    implementation 'com.pedropathing:tuning:1.0.1'
+    implementation 'com.pedropathing.ivy:core:1.1.1'
+    implementation 'com.pedropathing.ivy:pedro:1.1.1'
     implementation 'org.ftclib.ftclib:core:2.1.1'
 
     testImplementation 'junit:junit:4.13.2'
@@ -67,7 +63,7 @@ dependencies {
     testImplementation 'org.json:json:20260814'
 }
 
-// Keep Load 0.3's tasks and rotating reload files, with explicit ADB targeting.
+// Keep Load 0.3.2's tasks and rotating reload files, with explicit ADB targeting.
 // Its stock actions allow implicit device selection and check "lock" although
 // the runtime creates "sloth.lock". All commands below require ANDROID_SERIAL.
 abstract class SlothExecServices {
