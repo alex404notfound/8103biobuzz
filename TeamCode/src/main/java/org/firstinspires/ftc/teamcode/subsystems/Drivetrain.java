@@ -253,9 +253,5 @@ public class Drivetrain {
     public void stop() {
         lockHeading = false;
         stopFollowing();
-        frontLeft.setPower(0);
-        frontRight.setPower(0);
-        backLeft.setPower(0);
-        backRight.setPower(0);
     }
 }

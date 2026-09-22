@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.robot;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.bylazar.telemetry.PanelsTelemetry;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -30,8 +29,7 @@ public class Robot {
     public Robot(OpMode opMode, HardwareProfile profile) {
         this(opMode.hardwareMap, new MultipleTelemetry(
                 opMode.telemetry,
-                FtcDashboard.getInstance().getTelemetry(),
-                PanelsTelemetry.INSTANCE.getFtcTelemetry()
+                FtcDashboard.getInstance().getTelemetry()
         ), profile);
     }
 

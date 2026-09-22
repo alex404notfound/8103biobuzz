@@ -30,8 +30,9 @@ mechanism control, and strategy remain team code.
 
 ## First existing-code issue: competition telemetry
 
-`Robot` currently constructs `MultipleTelemetry` with Driver Station, Dashboard,
-and Panels. R704.C-D restricts match network use, including additional logging
+`Robot` currently constructs `MultipleTelemetry` with Driver Station and Dashboard.
+Panels remains available for AutoTune but is not a normal robot telemetry sink.
+R704.C-D restricts match network use, including additional logging
 and streaming services and continuous video. Introduce an explicit competition
 configuration with Driver Station telemetry; disable the Dashboard/Panel
 services and any tuning/video streams for matches. Merely removing a telemetry

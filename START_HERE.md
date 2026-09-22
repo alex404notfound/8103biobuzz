@@ -7,6 +7,10 @@ This is the season project: **FTC SDK 12.0.0, Pedro 3.0.1, Ivy 1.1.1 and
 AutoTune 1.0.1**. FTCLib core 2.1.1, Sloth 0.3.2, Dashboard and Panels are included.
 See [all dependency versions](docs/DEPENDENCIES.md).
 
+Normal robot telemetry goes to Driver Station and FTC Dashboard. Panels remains
+available for Pedro AutoTune; normal OpModes do not send it a duplicate telemetry
+stream. This does not disable the libraries' background services for matches.
+
 Read [the BIOBUZZ software requirements](docs/BIOBUZZ_SOFTWARE_REQUIREMENTS.md)
 for the manual review and implementation order. This is still a driving and
 tuning foundation: competition scoring routines, match-phase controls, and a competition
