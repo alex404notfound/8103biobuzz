@@ -43,6 +43,9 @@ repositories {
 configurations.configureEach {
     exclude group: 'com.acmerobotics.dashboard'
     exclude group: 'com.bylazar'
+    // Dashboard 0.6 owns Limelight ports 5800/5801/5805/5807. Panels' duplicate
+    // proxy binds the same ports during startup and crashes the Robot Controller.
+    exclude group: 'com.bylazar.sloth', module: 'limelightproxy'
 }
 
 dependencies {

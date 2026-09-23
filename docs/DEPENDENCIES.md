@@ -75,6 +75,12 @@ The Dashboard and Panels wrappers provide the original Java package names.
 The exclusions for `com.acmerobotics.dashboard` and `com.bylazar` keep the
 original implementations from entering the APK alongside their Sloth variants.
 
+Dashboard 0.6 also starts Limelight proxies on ports `5800`, `5801`, `5805`,
+and `5807`. Exclude `com.bylazar.sloth:limelightproxy` from fullpanels so only
+Dashboard owns those ports. Including both causes an `Address already in use`
+startup crash on the Control Hub, leaving the status light blue and the Robot
+Controller console unavailable. This dependency change requires a full APK install.
+
 Sloth's recent fixes improve
 [error handling and Java compatibility](https://github.com/Dairy-Foundation/Sloth/commit/5f4ee9457d84d474b3b44ca6481bef7a4518661d),
 prevent a [hardwareMap initialization race](https://github.com/Dairy-Foundation/Sloth/commit/4ec6afd0df2efed81d7f3e388cafa1b8420ef8fb),
