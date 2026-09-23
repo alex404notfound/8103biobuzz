@@ -71,8 +71,7 @@ public class Launcher {
     public String getStatus() {
         return getMode() == Mode.OFF && status != null ? status : flywheel.getStatus();
     }
-    public double getLeftRpm() { return flywheel.getLeftRpm(); }
-    public double getRightRpm() { return flywheel.getRightRpm(); }
+    public double getMeasuredRpm() { return flywheel.getMeasuredRpm(); }
     public double getCommandedHood() { return commandedHood; }
     public double getTargetRpm() { return ball == Ball.SMALL_POLLEN ? smallBallRpm : largeBallRpm; }
     private double presetHood() { return ball == Ball.SMALL_POLLEN ? smallBallHood : largeBallHood; }
@@ -110,9 +109,8 @@ public class Launcher {
     public boolean positionHood(double position) {
         if (!enabled || closed) { status = "Hood commands require START"; return false; }
         if (flywheel.getMode() != ShooterFlywheel.Mode.OFF || !flywheel.hasFreshSample()
-                || !Double.isFinite(getLeftRpm()) || !Double.isFinite(getRightRpm())
-                || Math.abs(getLeftRpm()) > 150 || Math.abs(getRightRpm()) > 150) {
-            status = "Release motors and wait for them to coast down before moving hood";
+                || !Double.isFinite(getMeasuredRpm()) || Math.abs(getMeasuredRpm()) > 150) {
+            status = "Release motors and wait for the flywheel to coast down before moving hood";
             return false;
         }
         if (!validHoodPosition(position)) {
@@ -178,7 +176,8 @@ public class Launcher {
     private void report() {
         telemetry.addData("Launcher ball / mode", ball + " / " + getMode());
         telemetry.addData("Launcher target motor RPM", getTargetRpm());
-        telemetry.addData("Launcher measured RPM L/R", "%.0f / %.0f", getLeftRpm(), getRightRpm());
+        telemetry.addData("Launcher measured RPM", getMeasuredRpm());
+        telemetry.addData("Launcher feedback encoder", flywheel.getFeedbackEncoder());
         telemetry.addData("Launcher at speed / preset ready", isAtSpeed() + " / " + isReady());
         telemetry.addData("Hood commanded / preset", "%.3f / %.3f", commandedHood, presetHood());
         telemetry.addData("Launcher status", getStatus());

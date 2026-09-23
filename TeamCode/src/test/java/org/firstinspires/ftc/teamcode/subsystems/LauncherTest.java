@@ -59,9 +59,9 @@ public class LauncherTest {
         launcher.idle();
         verify(flywheel).idle();
         when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.FAULT);
-        when(flywheel.getStatus()).thenReturn("Encoder disagreement");
+        when(flywheel.getStatus()).thenReturn("No feedback encoder response");
         assertEquals(Launcher.Mode.FAULT, launcher.getMode());
-        assertEquals("Encoder disagreement", launcher.getStatus());
+        assertEquals("No feedback encoder response", launcher.getStatus());
     }
 
     @Test public void runningPresetEditsRefreshTargetAndImmediatelyInvalidateOldReady() {
@@ -123,12 +123,11 @@ public class LauncherTest {
         calibratedHood();
         assertFalse(launcher.positionHood(0.9));
         assertFalse(launcher.positionHood(Double.NaN));
-        when(flywheel.getLeftRpm()).thenReturn(151.0);
+        when(flywheel.getMeasuredRpm()).thenReturn(151.0);
         assertFalse(launcher.applyPresetHood());
-        when(flywheel.getLeftRpm()).thenReturn(0.0);
-        when(flywheel.getRightRpm()).thenReturn(Double.NaN);
+        when(flywheel.getMeasuredRpm()).thenReturn(Double.NaN);
         assertFalse(launcher.applyPresetHood());
-        when(flywheel.getRightRpm()).thenReturn(0.0);
+        when(flywheel.getMeasuredRpm()).thenReturn(0.0);
         when(flywheel.hasFreshSample()).thenReturn(false);
         assertFalse(launcher.applyPresetHood());
         when(flywheel.hasFreshSample()).thenReturn(true);

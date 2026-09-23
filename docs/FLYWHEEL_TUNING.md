@@ -1,13 +1,14 @@
 # Two-motor shooter flywheel: FTC Dashboard tuning
 
 Run **Shooter Flywheel Tuning** in the **Prototyping** group. This motor-only OpMode
-needs the two shooter motors and their encoder cables, plus the Hub's battery
+needs the two shooter motors and **one encoder cable**, plus the Hub's battery
 voltage reading. It does not require a hood servo, drivetrain, turret or camera.
 
-Both motors drive **one mechanically linked flywheel**. They must have equal
-effective gearing. The controller uses their average motor RPM for feedback,
-sends the same logical power to both motors, and checks each encoder separately.
-It does not run two competing speed loops on the same shaft.
+Both motors drive **one flywheel through a belt**. They must have equal effective
+gearing. The **left motor's encoder (`launcherLeft`) is hard-coded** to measure
+the shared speed; a single PID +
+feedforward controller sends the same logical power to both motors. The other
+motor's encoder is never read and can remain unplugged.
 
 The design follows your [WPILib flywheel tuning reference](https://docs.wpilib.org/en/stable/docs/software/advanced-controls/introduction/tuning-flywheel.html):
 control **speed**, tune feedforward first, then add feedback for correction and
@@ -22,7 +23,9 @@ it contributes zero once the speed reference is constant.
    The custom motor type and controller use **28 encoder counts per motor shaft
    revolution**. These are motor RPM values; external flywheel gearing changes
    wheel RPM. The example `teamconfig8103_flywheel_bench.xml` puts them on Control
-   Hub motor ports 0/1; match your actual wiring and both encoder connections.
+   Hub motor ports 0/1; match your actual wiring. Connect the encoder cable from
+   `launcherLeft` to that motor's corresponding Hub encoder port. Leave the
+   `launcherRight` encoder unplugged; its motor power cable remains connected.
 2. Connect to the robot network. For a Control Hub, open
    [FTC Dashboard](http://192.168.43.1:8080/dash). For an Android phone Robot
    Controller, the usual address is [this Dashboard address](http://192.168.49.1:8080/dash).
@@ -33,14 +36,16 @@ it contributes zero once the speed reference is constant.
    Edit a value and press **Save** to apply it. Gains and setpoints are live;
    no rebuild is needed between tuning trials. The fields use `@Config` and
    `public static volatile`, following [Dashboard's configuration guidance](https://acmerobotics.github.io/ftc-dashboard/features).
-4. Select **Shooter Flywheel Tuning**, INIT, and inspect battery voltage and both
-   encoders. INIT never requests motor motion. START, then release all motion
+4. Select **Shooter Flywheel Tuning**, INIT, and inspect battery voltage,
+   the fixed **LEFT** feedback label and the single `flywheel.measuredRpm` value.
+   Encoder selection is not a Dashboard setting; changing it requires a code edit.
+   INIT never requests motor motion. START, then release all motion
    buttons once to arm the controls. Use the Driver Station gamepad for held
    motion commands while editing settings in Dashboard.
 
-Hardware names and `leftReversed`/`rightReversed` are applied at INIT. After changing
-a direction, STOP and INIT again. Changing a direction setting during operation
-stops the controller rather than silently reversing a spinning motor.
+Hardware names and `leftReversed`/`rightReversed` are applied at INIT.
+After changing a direction, STOP and INIT again. Changing a direction during
+operation invalidates readiness and stops the controller.
 
 ## Controls and direction verification
 
@@ -57,11 +62,13 @@ stops the controller rather than silently reversing a spinning motor.
 
 Individual checks use `ShooterFlywheel.testVoltage`, initially **1 V**, limited to
 1.8 V and the overall voltage cap. The unpowered motor is set to FLOAT. Because
-the shafts are linked, **both encoders may turn during a single-motor check**.
+the shafts are linked, **either motor must turn the left encoder**.
+Keep the belt installed for both checks; the feedback source does not switch
+when you change which motor is powered.
 
 Check each motor briefly. Each must drive the mechanism in the same desired
-launching direction, and both configured encoder readings must be positive in
-that direction. Change the appropriate reversed setting and re-INIT if needed.
+launching direction, and the left encoder must report positive RPM during
+either check. Change the appropriate reversed setting and re-INIT if needed.
 Set `directionsVerified=true` only after checking. Shared-voltage and RPM modes
 remain blocked until then. Positive RPM does not by itself prove the ball will
 be launched in the correct physical direction; inspect the mechanism too.
@@ -73,7 +80,7 @@ velocity. It computes software PID + feedforward, then calls `setPower()` on bot
 motors. There is no additional Hub `setVelocity()` loop or REV PIDF layer to tune.
 
 ```text
-measuredRpm = (leftRpm + rightRpm) / 2
+measuredRpm = leftMotorEncoderTicksPerSecond * 60 / 28
 referenceRpm = ramp toward targetRpm at maxAccelerationRpmPerSecond
 referenceAcceleration = change in referenceRpm / elapsed seconds
 
@@ -102,7 +109,7 @@ falls below zero. Actual slowdown can therefore take longer than the reference.
 | `maxAccelerationRpmPerSecond` | Rate limit for positive target changes and reductions. | 1000 RPM/s |
 | `maxVoltage` | Cap on the combined output of feedback and feedforward. | 3 V for initial bench work |
 | `integralLimitRpmSeconds` | Bound on accumulated error; maximum I contribution is `kI * integralLimitRpmSeconds`. | 5000 |
-| `rpmTolerance`, `speedDwellMs` | Each motor must stay within final-target tolerance for this duration. | 150 RPM, 250 ms |
+| `rpmTolerance`, `speedDwellMs` | Measured shared speed must stay within final-target tolerance for this duration. | 150 RPM, 250 ms |
 
 These flywheel gains use **volts and motor RPM**, while the Axon turret uses
 normalized servo power and turret degrees. Do not transfer gains between them.
@@ -115,20 +122,20 @@ it is not a separate measurement of motor terminal voltage under load.
 
 In Dashboard, select numeric telemetry fields and use **Graph**. Display:
 
-- `flywheel.targetRpm`, `flywheel.referenceRpm`, `flywheel.leftRpm`, `flywheel.rightRpm`.
+- `flywheel.targetRpm`, `flywheel.referenceRpm`, `flywheel.measuredRpm`.
 - `flywheel.referenceRpmPerSec`, `flywheel.feedforwardVolts`, `flywheel.feedbackVolts`.
 - `flywheel.requestedVolts`, `flywheel.appliedVolts`, `flywheel.batteryVolts`.
 
-`flywheel.encoderDifferenceRpm` helps diagnose disagreement. `Output limited`
-indicates clipping, and `both at speed` reports final-target readiness. The OpMode
-provides separate numeric values so you can compare the series directly.
+`Feedback encoder` identifies the source of that single RPM reading. `Output
+limited / at speed` reports clipping and final-target readiness. There are no
+left/right RPM, average RPM or encoder-difference graphs.
 
 ### 2. Measure steady-speed feedforward
 
 Begin unloaded, with room for the wheel to coast. Use **LB+A** at several small
 positive `characterizationVoltage` values inside `maxVoltage`. Once speed has
-stabilized, record average RPM and **appliedVolts**, not a request that was clipped.
-Repeat each point. Stop if the encoders disagree, the mechanism binds, or the
+stabilized, record measured RPM and **appliedVolts**, not a request that was clipped.
+Repeat each point. Stop if the feedback is missing, the mechanism binds, or the
 power path behaves unexpectedly.
 
 For two steady-speed points:
@@ -162,8 +169,8 @@ and within its ratings, or use lower targets during initial tuning. More gain
 cannot overcome a voltage cap.
 
 Once unloaded behavior is repeatable, test controlled single-ball shots through
-the completed mechanism. Look for the RPM dip and time until **both** encoders
-regain readiness. This OpMode does not feed balls automatically.
+the completed mechanism. Look for the shared RPM dip and time until speed
+regains readiness. This OpMode does not feed balls automatically.
 
 ### 4. Tune kA only for changing speed
 
@@ -192,21 +199,20 @@ can cause slow recovery or oscillation. D can amplify velocity noise and is ofte
 unnecessary for a steady flywheel. Gain edits reset accumulated integral, and
 anti-windup uses the total feedforward-plus-feedback voltage limits.
 
-Readiness requires the ramp to reach the **final** target, both individual RPMs
-inside tolerance, encoder agreement, fresh samples, and the dwell time. The
-average reaching target alone is insufficient. Choose tolerance from measured
+Readiness requires the ramp to reach the **final** target, the left encoder's
+RPM inside tolerance, fresh samples, and the dwell time. Choose tolerance from measured
 shot consistency and recovery behavior, not just to make the ready flag turn on.
 
 ## Faults, launcher integration and saving
 
-- Encoder mismatch persisting beyond `encoderMismatchDwellMs` stops both motors.
-  The default difference threshold is 250 RPM. Verify equal effective gearing and
-  both encoder connections rather than widening this to hide a wiring problem.
-- Power of at least 0.5 V without sufficient encoder RPM triggers the response
-  watchdog. Unexpected negative RPM in paired modes also faults.
+- Power of at least 0.5 V without sufficient left-encoder RPM triggers the
+  response watchdog and stops both motors. This also applies to either individual
+  motor test through the belt. Unexpected negative RPM in paired modes faults.
+- A single encoder cannot independently detect a failed second motor or all belt
+  failures. Verify the linkage and each motor's contribution during bench checks.
 - Once the ramp reaches final RPM, `spinupTimeoutMs` allows 4 seconds by default
   to reach/recover speed. A deliberate new ramp gets its own ramp time; encoder
-  response and mismatch checks remain active throughout target changes.
+  response checks remain active throughout target changes.
 - Invalid sensor/battery data or an active-loop gap over `maximumSampleGapMs`
   stops output. Release motion controls to acknowledge a fault and diagnose its
   status before retrying. STOP is terminal for that OpMode instance.

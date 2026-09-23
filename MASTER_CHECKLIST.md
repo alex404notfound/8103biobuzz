@@ -32,8 +32,9 @@ The turret and flywheel bench steps can run before the chassis is fully tuned.
 - [ ] **4. Tune the two motors driving the linked flywheel.** Run
   [Shooter Flywheel Tuning](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/ShooterFlywheelTuning.java)
   using [the flywheel guide](docs/FLYWHEEL_TUNING.md).
-  Verify both motor directions and encoder readings, then tune shared feedforward
-  and feedback. Check speed agreement, settling and recovery after a shot.
+  Connect the `launcherLeft` encoder; it is hard-coded as the only RPM source.
+  Verify both motor directions using that shared RPM reading, then tune
+  feedforward and feedback. Check settling and recovery after a shot.
 
 - [ ] **5. Calibrate hood compression and ball presets.** Run
   [Launcher Prototype](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/LauncherPrototype.java)

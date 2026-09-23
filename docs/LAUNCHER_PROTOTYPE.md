@@ -15,11 +15,14 @@ do not use that control while the camera is rotating on the turret.
 
 | Device | Default robot configuration name |
 | --- | --- |
-| First launcher motor, with encoder connected | `launcherLeft` |
-| Second launcher motor, with encoder connected | `launcherRight` |
+| First launcher motor | `launcherLeft` |
+| Second launcher motor | `launcherRight` |
 | Positional servo driving the rack and pinion | `hood` |
 | Limelight 3A | `limelight` |
 
+Connect the **`launcherLeft` encoder cable** to that motor's corresponding Hub
+encoder port. The left encoder is hard-coded as the only RPM source; leave the
+right encoder unplugged while keeping both motor power cables connected.
 Motor names and directions are editable in the `ShooterFlywheel` Dashboard
 section before INIT; the hood name is in `Launcher`.
 This expects a positional servo. A continuous-rotation servo would require
@@ -58,12 +61,14 @@ selection in [TUNING.md](TUNING.md).
    `ShooterFlywheel.testVoltage`; **LB + Y** powers only the second. Release to
    stop. The unpowered motor coasts and can turn through the mechanical linkage.
    Check that each powered motor drives the shared flywheel in the same shooting
-   direction and that both encoders report positive RPM. Zero RPM while a motor
-   turns means its encoder or configuration needs fixing before speed mode.
+   direction and that the left encoder reports positive RPM during either
+   test. Keep the belt installed: even when only the other motor is powered,
+   it must turn the left encoder through the linkage. Zero RPM while the
+   mechanism turns means the left encoder wiring/configuration needs checking.
 3. Set `ShooterFlywheel.leftReversed` / `rightReversed` for the mechanism. STOP
    and re-INIT after changing these: directions are read at INIT. Mirrored motor
    mounting may require opposite direction settings; the code does not assume it.
-4. Once directions and encoder readings are verified, set
+4. Once both motor directions and the left encoder reading are verified, set
    `ShooterFlywheel.directionsVerified = true`. Hold **RT** for both motors in RPM mode.
    Initial 1000 RPM presets are bench starting values, not shooting settings.
 5. Tune `smallBallRpm` and `largeBallRpm`, or use up/down for 100 RPM steps.
@@ -76,13 +81,13 @@ The motor controller now runs software velocity PID plus `kS`, `kV`, and `kA`
 feedforward. Its output is volts, divided by measured battery voltage to obtain
 motor power. `kV` uses volts per motor RPM; `kA` uses volts per motor RPM/second.
 `maxAccelerationRpmPerSecond` ramps the reference speed. Both linked motors get
-the same power, with feedback based on their average RPM and a separate encoder
-disagreement check. The old REV `Launcher.velocityP/I/D/F` settings were removed:
+the same power, with feedback based on the left encoder's RPM. Dashboard
+shows one measured RPM. The old REV `Launcher.velocityP/I/D/F` settings were removed:
 they do not apply to this controller. Hardware stays in `RUN_WITHOUT_ENCODER` so
 the Hub does not run a second velocity controller; encoder readout still works.
 
-Both encoders must remain within tolerance of the final requested RPM, and the
-ramp must finish, before `at speed` becomes true. A
+The left encoder must remain within tolerance of the final requested RPM
+for the configured dwell, and the ramp must finish, before `at speed` becomes true. A
 speed timeout stops both motors and latches while RT is held. Release, diagnose,
 then hold again to retry. Invalid or above-6000 RPM targets are rejected.
 Individual tests use a limited voltage; the linked wheel still needs time to coast.
@@ -100,8 +105,9 @@ left/right jog by 0.005 within those limits. Record the working positions in
 `smallBallHood` and `largeBallHood`; their numeric ordering is not assumed.
 
 **A** selects small pollen and applies its hood preset; **B** selects big nectar
-and applies its preset. Wait for the wheels to coast down before moving the
-hood. Re-press A/B if a command was rejected while spinning. Dashboard preset
+and applies its preset. Wait for the flywheel to coast down before moving the
+hood; this check uses the same single RPM measurement. Re-press A/B if a command
+was rejected while spinning. Dashboard preset
 edits require another explicit hood command to move the servo. The reported
 position is the command, not measured rack travel; readiness uses a settling
 delay. Save successful values into `Launcher.java`, since runtime tuning edits
