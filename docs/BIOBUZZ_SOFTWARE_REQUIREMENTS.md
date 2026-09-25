@@ -2,9 +2,10 @@
 
 Reviewed September 18, 2026 against the **2026-2027 Competition Manual, TU01**
 and **Team Update 01, September 17**. This is an implementation plan based on the
-manual and this checkout. [Launcher Prototype](LAUNCHER_PROTOTYPE.md) now supplies
-two-motor speed control, configurable compression presets, and selected-tag aiming
-for practice; the full game routines below are still planned.
+manual and this checkout. [Shooter Tuning](SHOOTER_TUNING.md) supplies two-motor
+speed tuning and a positional-servo control for practice. Vision is tested
+separately in [Hive Auto Aim Test](HIVE_AUTO_AIM.md); the full game routines below
+are still planned.
 
 Primary references: [current complete manual](https://ftc-resources.firstinspires.org/ftc/game/manual),
 [team updates](https://ftc-resources.firstinspires.org/ftc/game/tu-combined), and

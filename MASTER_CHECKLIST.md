@@ -5,8 +5,8 @@ measurements and tuning instructions; the linked Java files are the OpModes to r
 Check an item only after testing it on the robot. Dashboard values must be saved
 back into source to survive an app restart.
 
-**Current state:** the turret, linked flywheel, hood and auto-aim have separate
-practice OpModes. A combined competition scoring routine is still to be built.
+**Current state:** shooter motor and hood tuning share one practice OpMode;
+turret and auto-aim tests are separate. A combined competition scoring routine is still to be built.
 The turret and flywheel bench steps can run before the chassis is fully tuned.
 
 ## Setup and individual mechanisms
@@ -30,18 +30,16 @@ The turret and flywheel bench steps can run before the chassis is fully tuned.
   Positive turret angle must mean counterclockwise viewed from above for auto-aim.
 
 - [ ] **4. Tune the two motors driving the linked flywheel.** Run
-  [Shooter Flywheel Tuning](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/ShooterFlywheelTuning.java)
-  using [the flywheel guide](docs/FLYWHEEL_TUNING.md).
+  [Shooter Tuning](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/ShooterTuning.java)
+  using [the shooter guide](docs/SHOOTER_TUNING.md).
   Connect the `launcherLeft` encoder; it is hard-coded as the only RPM source.
   Verify both motor directions using that shared RPM reading, then tune
   feedforward and feedback. Check settling and recovery after a shot.
 
-- [ ] **5. Calibrate hood compression and ball presets.** Run
-  [Launcher Prototype](TeamCode/src/main/java/org/firstinspires/ftc/teamcode/opmodes/testing/LauncherPrototype.java)
-  using [the launcher guide](docs/LAUNCHER_PROTOTYPE.md).
-  Measure hood travel and separate small/large-ball settings; verify them with
-  the tuned flywheel. Use its launcher controls; its chassis tag-alignment control
-  assumes a fixed camera and is unsuitable for the turret-mounted Limelight.
+- [ ] **5. Calibrate hood compression and ball settings.** Use the same
+  **Shooter Tuning** OpMode and [servo controls](docs/SHOOTER_TUNING.md#measure-hood-compression).
+  Measure hood travel and record separate small/large-ball positions and RPM;
+  verify them with the tuned flywheel.
 
 ## Vision and shooting measurements
 
@@ -55,7 +53,7 @@ The turret and flywheel bench steps can run before the chassis is fully tuned.
   This OpMode does not run the launcher.
 
 - [ ] **7. Establish which shots actually work.** Follow
-  [launcher preset calibration](docs/LAUNCHER_PROTOTYPE.md#measuring-hood-compression)
+  [shooter calibration](docs/SHOOTER_TUNING.md#measure-hood-compression)
   and [shallow-angle shot guidance](docs/HIVE_AUTO_AIM.md#why-shallow-shots-can-miss-even-with-correct-horizontal-aim).
   Record ball type, distance, approach angle, RPM, hood setting and shot results.
   Start with frontal shots. Use measured results to restrict the aiming window

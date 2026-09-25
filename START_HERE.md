@@ -22,16 +22,10 @@ jogging, configurable gearing/limits, and profiled PID + feedforward position co
 Then follow [the turret tuning guide](docs/AXON_TURRET_TUNING.md) for kS/kV/kA,
 P/I/D, profile limits and Dashboard graphs.
 
-For a simple one-motor shooter and one positional servo, use
-[Single Motor Shooter Tuning](docs/SINGLE_MOTOR_SHOOTER_TUNING.md) for live
-Dashboard RPM, PID + kV/kA gains, and servo position controls.
-
-For the two-motor launcher, rack-and-pinion compression hood, and Limelight 3A,
-first use [Shooter Flywheel Tuning](docs/FLYWHEEL_TUNING.md) to tune the linked
-two-motor flywheel in FTC Dashboard. Its controller is shared with the launcher.
-For hood and vision integration,
-start with [Launcher Prototype](docs/LAUNCHER_PROTOTYPE.md). It includes bench
-controls, hood calibration, and optional chassis AprilTag alignment.
+For shooter tuning, use [Shooter Tuning](docs/SHOOTER_TUNING.md): one TeleOp
+for two linked flywheel motors and one positional servo. RPM, PID/feedforward,
+and servo position are controlled from one Dashboard section. Both motors brake
+at zero output. No camera or drivetrain is required.
 
 For the turret-mounted Limelight, use [Hive Auto Aim Test](docs/HIVE_AUTO_AIM.md)
 to calibrate tag-based CELL orientation and turret azimuth, compensate camera

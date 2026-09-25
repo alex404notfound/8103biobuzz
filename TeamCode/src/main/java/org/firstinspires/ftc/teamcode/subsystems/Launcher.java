@@ -10,7 +10,7 @@ import java.util.function.LongSupplier;
 /** Linked two-motor flywheel and a positional rack-and-pinion compression servo. */
 @Config
 public class Launcher {
-    // Motor hardware and control settings live in ShooterFlywheel for both launcher OpModes.
+    // This reusable launcher uses ShooterFlywheel's voltage-based hardware and control settings.
     public static volatile String hoodServoName = "hood";
     public static final double TICKS_PER_REVOLUTION = ShooterFlywheel.TICKS_PER_REVOLUTION;
     public static final double MAX_MOTOR_RPM = ShooterFlywheel.MAX_MOTOR_RPM;
