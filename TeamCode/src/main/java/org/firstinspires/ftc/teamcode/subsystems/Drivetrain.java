@@ -8,6 +8,7 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.behaviors.EndCondition;
+import dev.nextftc.robot.Mechanism;
 import com.pedropathing.paths.Path;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
@@ -17,11 +18,12 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.GuardedMecanum;
 import org.firstinspires.ftc.teamcode.robot.Alliance;
 import static com.pedropathing.ivy.pedro.PedroCommands.follow;
 
 @Config
-public class Drivetrain {
+public class Drivetrain implements Mechanism {
     // Optional TeleOp heading hold gains; tune on the actual robot in Dashboard.
     public static double headingP = 0, headingI = 0, headingD = 0;
     private static Pose poseTransfer = Pose.zero();
@@ -122,6 +124,26 @@ public class Drivetrain {
 
     public Pose getPose() {
         return follower.pose();
+    }
+
+    /** Linear robot-relative output through Pedro. Forward/left/CCW are positive; caller owns this mechanism. */
+    public void driveRobotRelative(double forward, double left, double counterclockwise) {
+        if (!Double.isFinite(forward) || !Double.isFinite(left) || !Double.isFinite(counterclockwise)
+                || !isLocalizationReady()) { stop(); return; }
+        if (followingControlEnabled) stopFollowing();
+        unlockHeading();
+        double scale = Math.max(1, Math.abs(forward) + Math.abs(left) + Math.abs(counterclockwise));
+        follower.drivetrain.drive(new DrivePowers(forward / scale, left / scale, counterclockwise / scale), true);
+    }
+
+    /** Instance-local cap applies to both Pedro paths and direct camera corrections. */
+    public double getMotorPowerLimit() { return guardedMotorOwner().getPowerLimit(); }
+    public void setMotorPowerLimit(double limit) { guardedMotorOwner().setPowerLimit(limit); }
+
+    private GuardedMecanum guardedMotorOwner() {
+        if (!(follower.drivetrain instanceof GuardedMecanum))
+            throw new IllegalStateException("A power-limited test requires the configured guarded Pedro drivetrain");
+        return (GuardedMecanum) follower.drivetrain;
     }
 
     /** Linear, clockwise-positive turn for a camera controller; never squares its output. */

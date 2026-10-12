@@ -1,12 +1,13 @@
 package org.firstinspires.ftc.teamcode.opmodes.autos;
 
-import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import dev.nextftc.robot.opmode.NextAutonomous;
 
 import org.firstinspires.ftc.teamcode.robot.Alliance;
+import org.firstinspires.ftc.teamcode.robot.Robot;
 
-@Autonomous(name = "Red Skeleton", group = "Examples")
+@NextAutonomous(name = "Red Skeleton", group = "Examples")
 public class RedSkeletonAuto extends SkeletonAuto {
-    public RedSkeletonAuto() {
-        super(Alliance.RED);
+    public RedSkeletonAuto(Robot robot) {
+        super(robot, Alliance.RED);
     }
 }

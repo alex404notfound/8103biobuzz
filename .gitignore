@@ -86,3 +86,17 @@ lint/tmp/
 /season-workspaces/
 __pycache__/
 *.py[cod]
+
+# Local documentation (retained on disk, excluded from Git)
+/doc/
+/docs/
+*.[mM][dD]
+*.[mM][aA][rR][kK][dD][oO][wW][nN]
+*.[rR][sS][tT]
+*.[aA][dD][oO][cC]
+*.[pP][dD][fF]
+*.[dD][oO][cC]
+*.[dD][oO][cC][xX]
+*.[oO][dD][tT]
+*.[rR][tT][fF]
+[rR][eE][aA][dD][mM][eE].[tT][xX][tT]

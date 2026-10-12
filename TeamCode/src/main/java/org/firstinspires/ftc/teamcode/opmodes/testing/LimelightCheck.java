@@ -1,17 +1,25 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import dev.nextftc.robot.opmode.NextTeleop;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 import org.firstinspires.ftc.teamcode.robot.RobotOpMode;
 
+import static com.pedropathing.ivy.commands.Commands.instant;
+
 /** Stationary diagnostic for camera/pipeline/frame setup, with explicit correction on Circle. */
-@TeleOp(name = "Limelight Check", group = "Diagnostics")
+@NextTeleop(name = "Limelight Check", group = "Diagnostics")
 public class LimelightCheck extends RobotOpMode {
-    @Override protected Robot createRobot() {
-        return new Robot(this, Robot.HardwareProfile.DRIVE_AND_VISION);
+    public LimelightCheck(Robot robot) { super(robot); }
+
+    @Override protected Robot.HardwareProfile hardwareProfile() {
+        return Robot.HardwareProfile.DRIVE_AND_VISION;
     }
 
     @Override protected void onInit() { robot.drivetrain.usePreviousStartingPose(); }
+
+    @Override protected void onStart() {
+        driver.circle().onTrue(instant(() -> robot.limelight.relocalize().schedule()));
+    }
 
     @Override protected void onInitLoop() {
         if (gamepad1.xWasPressed()) robot.drivetrain.recalibrateLocalization();
@@ -21,7 +29,6 @@ public class LimelightCheck extends RobotOpMode {
     }
 
     @Override protected void onLoop() {
-        if (gamepad1.circleWasPressed()) robot.limelight.relocalize().schedule();
         robot.telemetry.addLine("No driving controls. Circle requests a stationary translation correction.");
     }
 }

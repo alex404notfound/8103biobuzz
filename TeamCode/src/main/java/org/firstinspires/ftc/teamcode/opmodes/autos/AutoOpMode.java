@@ -4,6 +4,7 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.ivy.Command;
 
 import org.firstinspires.ftc.teamcode.robot.Alliance;
+import org.firstinspires.ftc.teamcode.robot.Robot;
 import org.firstinspires.ftc.teamcode.robot.RobotOpMode;
 
 import static com.pedropathing.ivy.Scheduler.schedule;
@@ -25,7 +26,8 @@ public abstract class AutoOpMode extends RobotOpMode {
     private boolean aborted;
     private String abortReason;
 
-    protected AutoOpMode(Alliance alliance) {
+    protected AutoOpMode(Robot robot, Alliance alliance) {
+        super(robot);
         this.alliance = alliance;
     }
 
@@ -87,13 +89,20 @@ public abstract class AutoOpMode extends RobotOpMode {
 
     @Override
     protected final void onLoop() {
-        // Runs before Scheduler.execute: a stopped follower must not advance the sequence.
+        // Reject an already-known fault before accepting any new action.
         if (!aborted && !robot.drivetrain.isLocalizationReady()) abortForLocalization();
         if (aborted) robot.telemetry.addData("Auto aborted - press STOP", abortReason);
         else onAutoLoop();
     }
 
     protected void onAutoLoop() { }
+
+    @Override
+    protected final void onAfterMechanisms() {
+        // NextFTC samples mechanisms before Scheduler.execute. Cancel on a fault
+        // discovered THIS loop before the stopped follower can advance the sequence.
+        if (!aborted && !robot.drivetrain.isLocalizationReady()) abortForLocalization();
+    }
 
     private void abortForLocalization() {
         abort(robot.drivetrain.getLocalizationStatus());

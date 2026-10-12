@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.pedroPathing;
 import com.pedropathing.algorithm.Foresight;
 import com.pedropathing.algorithm.ForesightConfig;
 import com.pedropathing.controllers.Controller;
-import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.localization.MotionState;
@@ -73,18 +72,7 @@ public class Constants {
     });
 
     public static Mecanum createDrivetrain(HardwareMap hardwareMap) {
-        return new Mecanum(hardwareMap, drivetrainConfig) {
-            @Override public void drive(DrivePowers powers, boolean manual) {
-                // CachedMotor ignores nonfinite values, which would retain the previous power.
-                // Stop the complete drivetrain before allowing that partial update to occur.
-                if (powers == null || !Double.isFinite(powers.forward())
-                        || !Double.isFinite(powers.strafe()) || !Double.isFinite(powers.turn())) {
-                    super.stop();
-                    throw new LocalizationNotReady("NON_FINITE_DRIVE_COMMAND");
-                }
-                super.drive(powers, manual);
-            }
-        };
+        return new GuardedMecanum(hardwareMap, drivetrainConfig);
     }
 
     public static Localizer createGuardedLocalizer(HardwareMap hardwareMap) {

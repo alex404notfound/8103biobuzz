@@ -2,13 +2,13 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.acmerobotics.dashboard.config.Config;
 import com.pedropathing.ivy.Command;
+import dev.nextftc.robot.Mechanism;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 import static com.pedropathing.ivy.commands.Commands.conditional;
-import static com.pedropathing.ivy.commands.Commands.instant;
 
 /**
  * The copy-paste starting point for every new mechanism (spec §4.2 anatomy):
@@ -19,15 +19,15 @@ import static com.pedropathing.ivy.commands.Commands.instant;
  *     matching src/main/res/xml/teamconfig8103.xml verbatim.
  *  3. A Mode enum + switch inside periodic() — API methods only change the mode;
  *     periodic() writes actuator power during operation; stop() writes a safe output.
- *  4. periodic() is an ordinary control/telemetry update called by Robot once
+ *  4. periodic() is a NextFTC mechanism update called once
  *     per cycle. Never block in it. stop() explicitly makes the actuator safe.
- *  5. Ivy commands declare .requiring(this) to arbitrate actions for this mechanism.
+ *  5. NextFTC's instant()/infinite() helpers require this mechanism automatically.
  *     on()/off() set a persistent mode; runWhileScheduled() owns its running lifetime.
  *
  * Register construction, periodic(), and stop() together in Robot.
  */
 @Config
-public class ExampleSubsystem {
+public class ExampleSubsystem implements Mechanism {
     public static double onPower = 1;
     public static double offPower = 0;
 
@@ -45,11 +45,11 @@ public class ExampleSubsystem {
 
     /** Sets ON and finishes immediately; motor remains on until another action changes the mode. */
     public Command on() {
-        return instant(() -> mode = Mode.ON).requiring(this);
+        return instant(() -> mode = Mode.ON);
     }
 
     public Command off() {
-        return instant(() -> mode = Mode.OFF).requiring(this);
+        return instant(() -> mode = Mode.OFF);
     }
 
     public Command toggle() {

@@ -5,6 +5,7 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.paths.Path;
 
 import org.firstinspires.ftc.teamcode.robot.Alliance;
+import org.firstinspires.ftc.teamcode.robot.Robot;
 
 import static com.pedropathing.ivy.groups.Groups.sequential;
 import static com.pedropathing.api.Paths.line;
@@ -16,8 +17,8 @@ import static com.pedropathing.api.Paths.line;
 public abstract class SkeletonAuto extends AutoOpMode {
     private Paths paths;
 
-    protected SkeletonAuto(Alliance alliance) {
-        super(alliance);
+    protected SkeletonAuto(Robot robot, Alliance alliance) {
+        super(robot, alliance);
     }
 
     @Override

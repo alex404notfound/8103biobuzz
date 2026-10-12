@@ -5,6 +5,7 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import com.pedropathing.ivy.Command;
+import dev.nextftc.robot.Mechanism;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
@@ -14,11 +15,10 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.function.LongSupplier;
-import static com.pedropathing.ivy.commands.Commands.instant;
 
 /** Nonblocking camera polling and calibrated, operator-requested stationary pose correction. */
 @Config
-public class Limelight {
+public class Limelight implements Mechanism {
     /** Read at INIT. Configure this AprilTag pipeline and camera extrinsics in the camera UI. */
     public static int pipelineIndex = 0;
     public static double maxStalenessMs = 100;

@@ -115,6 +115,56 @@ public class Pedro3DriveContractTest {
         assertEquals(-2 * Math.PI, drive.getVelocity().omega, 0);
     }
 
+    @Test public void testPowerCapBoundsActualPedroWheelPowersAndCanBeRestored() {
+        drive.setMotorPowerLimit(.25);
+        Command command = drive.followPath(line(Pose.zero(), new Pose(20, 0)).constant(0));
+        command.schedule();
+        when(algorithm.calculatePath(any(), any(), any(), anyDouble()))
+                .thenReturn(new DrivePowers(.8, .4, -.3));
+        drive.periodic();
+        for (double power : powers) assertTrue(Math.abs(power) <= .25 + 1e-9);
+        command.cancel();
+        drive.driveRobotRelative(.2, 0, .2);
+        for (double power : powers) assertTrue(Math.abs(power) <= .25 + 1e-9);
+        drive.stop();
+        drive.setMotorPowerLimit(1);
+        drive.driveRobotRelative(.6, 0, 0);
+        assertArrayEquals(new double[]{.6, .6, .6, .6}, powers, 1e-9);
+    }
+
+    @Test public void linearCameraDriveUsesRobotForwardLeftAndCounterclockwiseAndBreaksPathControl() {
+        drive.followPath(line(Pose.zero(), new Pose(20, 0)).constant(0)).schedule();
+        drive.driveRobotRelative(.2, .1, .05);
+        assertTrue(follower.idle());
+        assertArrayEquals(new double[]{.05, .35, .25, .15}, powers, 1e-9);
+        drive.periodic();
+        assertArrayEquals(new double[]{.05, .35, .25, .15}, powers, 1e-9);
+        drive.driveRobotRelative(Double.NaN, 0, 0);
+        assertArrayEquals(new double[4], powers, 0);
+    }
+
+    @Test public void loweringPowerLimitImmediatelyRemovesEarlierOutputAndRejectsInvalidLimits() {
+        drive.driveRobotRelative(.8, 0, 0);
+        drive.setMotorPowerLimit(.25);
+        assertArrayEquals(new double[4], powers, 0);
+        assertThrows(IllegalArgumentException.class, () -> drive.setMotorPowerLimit(Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> drive.setMotorPowerLimit(2));
+    }
+
+    @Test public void pathSpeedModifiersAreRestoredWhenTheApproachEnds() {
+        double original = Constants.foresightConfig.maxVelocityConstraint.get();
+        try {
+            Command command = drive.followPath(line(Pose.zero(), new Pose(20, 0)).constant(0)
+                    .with(Constants.foresightConfig.maxVelocityConstraint.at(10.0)));
+            command.schedule();
+            when(algorithm.calculatePath(any(), any(), any(), anyDouble())).thenReturn(DrivePowers.zero());
+            drive.periodic();
+            assertEquals(10, Constants.foresightConfig.maxVelocityConstraint.get(), 0);
+            command.cancel();
+            assertEquals(original, Constants.foresightConfig.maxVelocityConstraint.get(), 0);
+        } finally { Constants.foresightConfig.maxVelocityConstraint.set(original); }
+    }
+
     @Test public void renamedDriveMotorsUseTheSameConfigurationForDrivingAndStopping() {
         MecanumConfig original = Constants.drivetrainConfig;
         try {
