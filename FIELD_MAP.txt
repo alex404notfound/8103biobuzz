@@ -1,0 +1,45 @@
+Panels field map
+
+Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
+
+1. Build and fully install the updated APK after the Panels migration.
+   Later code-only changes can use the normal Sloth reload.
+2. Connect your computer to the robot's Wi-Fi and open:
+   http://192.168.43.1:8001
+3. Select Field Map (Diagnostics) on Driver Station and press INIT.
+   Add the Field and Telemetry widgets to your Panels layout.
+4. In Panels Configurables > FieldMap, enter startX, startY, and
+   startHeadingDegrees for the measured center of your robot.
+   Coordinates are inches from the bottom-left corner with the audience below:
+   X increases to the right; Y increases away from the audience.
+   Heading 0 points right, 90 points up, 180 left, and 270 toward the audience.
+5. Keep the robot stationary. If calibration is needed, press X during INIT
+   and wait for Pinpoint READY. Press A during INIT to apply the starting pose.
+   Editing the values alone does not reset the robot's position.
+6. Press START and move the robot by hand. Field Map does not power the drive
+   motors. For powered driving, use Skeleton TeleOp, which retains the last
+   pose and shows the same map automatically.
+
+The teal circle is the estimated robot center; its line points forward.
+The trail shows up to 10 seconds of recent motion, refreshing at 10 Hz.
+A pose reset clears the trail. Invalid/calibrating localization immediately
+hides the robot marker, clears the trail, and reports POSITION UNAVAILABLE in
+Telemetry. Field X/Y, heading, and localization status appear there every loop.
+
+Panels uses its bundled BIOBUZZ field image with a BIOBUZZ / Pedro preset.
+Keep that incoming preset and remove saved manual coordinate overrides if the
+Field widget displays a rotated/flipped view. Red is left, blue is right, and
+the audience is below. The robot circle marks position, not its measured
+footprint. The image does not display live HIVE tilt or moving obstacles.
+
+Position comes from Pedro/Pinpoint odometry. The starting pose, pod settings,
+and calibration must match the real robot; the map cannot discover its
+absolute location. OpModes that reset pose to zero show motion relative to
+that zero until their actual field starting pose is supplied.
+
+All OpModes using the shared Drivetrain publish this map during their normal
+localization updates, including Skeleton TeleOp/autos and Hive Pedro Test.
+The standalone Pinpoint Check and Pedro AutoTune use their own loops and do
+not publish this map. Use Field Map for the standalone display.
+
+Native drawing API and features: https://panels.bylazar.com/

@@ -1,14 +1,17 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 
 /** Sensor-only check: no drive motors, example mechanism, camera, or pose reset. */
+@Disabled
 @TeleOp(name = "Pinpoint Check", group = "Diagnostics")
 public class PinpointCheck extends OpMode {
     private GoBildaPinpointDriver pinpoint;
@@ -18,6 +21,7 @@ public class PinpointCheck extends OpMode {
     private double configuredStrafeOffset;
 
     @Override public void init() {
+        telemetry = RobotTelemetry.forOpMode(telemetry);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConfig.name.get());
         pinpoint.setOffsets(Constants.localizerConfig.xPodOffset.get(), Constants.localizerConfig.yPodOffset.get(),
                 Constants.localizerConfig.offsetUnits.get());

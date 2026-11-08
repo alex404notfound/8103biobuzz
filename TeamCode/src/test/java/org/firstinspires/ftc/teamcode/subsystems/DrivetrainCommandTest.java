@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import com.bylazar.field.Canvas;
+import com.bylazar.field.Circle;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Localizer;
 import com.pedropathing.algorithm.Algorithm;
@@ -35,6 +37,9 @@ public class DrivetrainCommandTest {
     private final AtomicLong clock = new AtomicLong();
     private final GoBildaPinpointDriver pinpoint = mock(GoBildaPinpointDriver.class);
     private final DcMotorEx motor = mock(DcMotorEx.class);
+    private final Telemetry telemetry = mock(Telemetry.class);
+    private final java.util.List<Canvas> fieldFrames =
+            new java.util.ArrayList<>();
 
     @Before public void setUp() {
         Scheduler.reset();
@@ -51,7 +56,7 @@ public class DrivetrainCommandTest {
         when(hardwareMap.get(eq(GoBildaPinpointDriver.class), anyString())).thenReturn(pinpoint);
         when(pinpoint.getDeviceStatus()).thenReturn(GoBildaPinpointDriver.DeviceStatus.READY);
         doReturn(Pose.zero()).when(follower).pose();
-        drivetrain = new Drivetrain(follower, hardwareMap, mock(Telemetry.class), clock::get);
+        drivetrain = new Drivetrain(follower, hardwareMap, telemetry, clock::get, fieldFrames::add);
         clearInvocations(follower, motor);
     }
 
@@ -62,9 +67,32 @@ public class DrivetrainCommandTest {
         verify(motor, never()).setPower(doubleThat(power -> power != 0));
     }
 
-    @Test public void cameraTurnIsLinearClockwiseAndCannotUseStaleLocalization() {
+    @Test public void fieldMapUsesTheNewSensorSampleAndDoesNotSlowLocalization() {
+        doAnswer(call -> {
+            doReturn(new Pose(31, 42, Math.PI / 2)).when(follower).pose();
+            return null;
+        }).when(localizer).update();
         drivetrain.periodic();
-        drivetrain.turnInPlace(0.2);
+        Circle robot = (Circle) fieldFrames.get(0).getItems().get(0);
+        assertEquals(31, robot.getX(), 0);
+        assertEquals(42, robot.getY(), 0);
+        verify(telemetry).addData("Field heading (deg)", 90.0);
+        clock.set(50_000_000L);
+        drivetrain.periodic();
+        assertEquals(1, fieldFrames.size());
+        verify(localizer, times(2)).update();
+        drivetrain.setStartingPose(new Pose(10, 20, 0));
+        drivetrain.periodic();
+        assertEquals(2, fieldFrames.size()); // a reset forces a fresh map immediately
+        when(pinpoint.getDeviceStatus()).thenReturn(GoBildaPinpointDriver.DeviceStatus.FAULT_BAD_READ);
+        drivetrain.periodic();
+        assertTrue(fieldFrames.get(2).getItems().isEmpty());
+        verify(telemetry).addData("Field localization ready", false);
+    }
+
+    @Test public void robotRelativeTurnIsLinearAndCannotUseStaleLocalization() {
+        drivetrain.periodic();
+        drivetrain.driveRobotRelative(0, 0, -0.2);
         org.mockito.ArgumentCaptor<com.pedropathing.drivetrain.DrivePowers> powers =
                 org.mockito.ArgumentCaptor.forClass(com.pedropathing.drivetrain.DrivePowers.class);
         verify(follower.drivetrain).drive(powers.capture(), eq(true));
@@ -73,9 +101,9 @@ public class DrivetrainCommandTest {
         assertEquals(-0.2, powers.getValue().turn(), 1e-9);
         clearInvocations(follower.drivetrain);
         clock.set(251_000_000L);
-        drivetrain.turnInPlace(0.2);
+        drivetrain.driveRobotRelative(0, 0, -0.2);
         verify(follower.drivetrain, never()).drive(any(), anyBoolean());
-        drivetrain.turnInPlace(Double.NaN);
+        drivetrain.driveRobotRelative(0, 0, Double.NaN);
         verify(follower.drivetrain, never()).drive(any(), anyBoolean());
     }
 
@@ -179,6 +207,16 @@ public class DrivetrainCommandTest {
         action.cancel();
         verify(follower).stop();
         assertFalse(action.isScheduled());
+    }
+
+    @Test public void followerStopFailureStillForcesAllMotorZeros() {
+        clearInvocations(follower.drivetrain);
+        RuntimeException failure = new IllegalStateException("Follower stop failed");
+        doThrow(failure).when(follower).stop();
+        assertSame(failure, assertThrows(RuntimeException.class, drivetrain::stop));
+        verify(follower.drivetrain).stop();
+        verify(motor, times(4)).setPower(0);
+        verify(motor, times(4)).setZeroPowerBehavior(com.qualcomm.robotcore.hardware.DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
     @Test public void timeoutStopsTheFollowerBeforeAnotherPeriodicTick() {

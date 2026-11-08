@@ -13,6 +13,8 @@ import org.firstinspires.ftc.teamcode.opmodes.teleop.SkeletonTeleOp;
 import org.firstinspires.ftc.teamcode.opmodes.teleop.SkeletonVisionTeleOp;
 import org.firstinspires.ftc.teamcode.opmodes.testing.LimelightCheck;
 import org.firstinspires.ftc.teamcode.opmodes.testing.HivePedroTest;
+import org.firstinspires.ftc.teamcode.opmodes.testing.HiveMarrowTest;
+import org.firstinspires.ftc.teamcode.opmodes.testing.FieldMap;
 import org.firstinspires.ftc.teamcode.testutil.NextOpModeHarness;
 import org.junit.Test;
 
@@ -40,6 +42,8 @@ public class NextFtcRegistrationTest {
             check(SkeletonVisionTeleOp.class, "Skeleton Vision TeleOp", robot);
             check(LimelightCheck.class, "Limelight Check", robot);
             check(HivePedroTest.class, "Hive Pedro Test", robot);
+            check(HiveMarrowTest.class, "Hive Marrow Test", robot);
+            check(FieldMap.class, "Field Map", robot);
         } finally {
             robotClass.set(null, oldClass);
             robotInstance.set(null, oldInstance);

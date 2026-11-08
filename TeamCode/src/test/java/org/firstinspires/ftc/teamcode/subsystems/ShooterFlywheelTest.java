@@ -2,9 +2,10 @@ package org.firstinspires.ftc.teamcode.subsystems;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import org.junit.After;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -12,61 +13,34 @@ import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/** Tests the linked flywheel as one mechanism, including failed feedback and tuning changes. */
+/** Tests one shooter with its own feedback, including failed sensors and tuning changes. */
 public class ShooterFlywheelTest {
     private final DcMotorEx left = mock(DcMotorEx.class), right = mock(DcMotorEx.class);
     private final AtomicLong now = new AtomicLong();
     private double batteryVolts = 12;
     private ShooterFlywheel flywheel;
+    private final ShooterFlywheel.Settings settings = new ShooterFlywheel.Settings("launcherLeft");
 
     @Before public void setUp() {
-        defaults();
-        flywheel = new ShooterFlywheel(left, right, () -> batteryVolts, now::get);
+        flywheel = new ShooterFlywheel(left, settings, () -> batteryVolts, now::get);
         clearInvocations(left, right);
     }
 
-    @After public void tearDown() { defaults(); }
-
-    private static void defaults() {
-        ShooterFlywheel.leftMotorName = "launcherLeft";
-        ShooterFlywheel.rightMotorName = "launcherRight";
-        ShooterFlywheel.leftReversed = ShooterFlywheel.rightReversed = false;
-        ShooterFlywheel.directionsVerified = false;
-        ShooterFlywheel.kP = .002;
-        ShooterFlywheel.kI = ShooterFlywheel.kD = ShooterFlywheel.kS = ShooterFlywheel.kA = 0;
-        ShooterFlywheel.kV = 12.0 / 6000;
-        ShooterFlywheel.maxVoltage = 3;
-        ShooterFlywheel.testVoltage = 1;
-        ShooterFlywheel.maxAccelerationRpmPerSecond = 1000;
-        ShooterFlywheel.rpmTolerance = 150;
-        ShooterFlywheel.speedDwellMs = 250;
-        ShooterFlywheel.spinupTimeoutMs = 4000;
-        ShooterFlywheel.encoderResponseTimeoutMs = 1000;
-        ShooterFlywheel.minimumEncoderRpm = 50;
-        ShooterFlywheel.maximumSampleGapMs = 250;
-        ShooterFlywheel.integralLimitRpmSeconds = 5000;
-    }
-
-    @Test public void initializationUsesPowerControlAndFloatWithNoNestedHubVelocityLoop() {
-        new ShooterFlywheel(left, right, () -> batteryVolts, now::get);
+    @Test public void initializationUsesPowerControlAndBrakeWithNoNestedHubVelocityLoop() {
+        new ShooterFlywheel(left, settings, () -> batteryVolts, now::get);
         verify(left).setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        verify(right).setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        verify(left).setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        verify(right).setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        verify(left).setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         verify(left, never()).setVelocity(anyDouble());
-        verify(right, never()).setVelocity(anyDouble());
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
     }
 
     @Test public void initAndTerminalStopRejectEveryStartRequest() {
-        ShooterFlywheel.directionsVerified = true;
+        settings.directionVerified = true;
         flywheel.requestRpm(1000);
         flywheel.requestVoltage(1);
-        flywheel.requestMotorTest(true);
+        flywheel.requestMotorTest();
         flywheel.periodic();
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
         flywheel.enable();
         flywheel.requestVoltage(1);
         flywheel.periodic();
@@ -77,15 +51,14 @@ public class ShooterFlywheelTest {
         flywheel.idle();
         flywheel.requestRpm(1000);
         flywheel.requestVoltage(1);
-        flywheel.requestMotorTest(false);
+        flywheel.requestMotorTest();
         flywheel.periodic();
         assertEquals(0, flywheel.getPower(), 0);
         assertFalse(flywheel.isAtSpeed());
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
     }
 
-    @Test public void unverifiedDirectionsBlockPairedPowerButPermitIndividualDirectionChecks() {
+    @Test public void unverifiedDirectionBlocksRpmButPermitsLowVoltageCheck() {
         flywheel.enable();
         flywheel.requestRpm(1000);
         flywheel.periodic();
@@ -93,41 +66,31 @@ public class ShooterFlywheelTest {
         flywheel.requestVoltage(1);
         flywheel.periodic();
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
         flywheel.idle();
-        flywheel.requestMotorTest(true);
+        flywheel.requestMotorTest();
         flywheel.periodic();
-        assertEquals(ShooterFlywheel.Mode.LEFT_TEST, flywheel.getMode());
+        assertEquals(ShooterFlywheel.Mode.DIRECTION_TEST, flywheel.getMode());
         verify(left).setPower(1.0 / 12);
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
-        clearInvocations(left, right);
-        flywheel.requestMotorTest(false);
-        step(20);
-        assertEquals(ShooterFlywheel.Mode.RIGHT_TEST, flywheel.getMode());
-        verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right).setPower(1.0 / 12);
+        verifyNoInteractions(right);
     }
 
-    @Test public void linkedMotorsReceiveIdenticalBatteryCompensatedVoltageAndPower() {
+    @Test public void motorReceivesBatteryCompensatedVoltageAndPower() {
         enable();
         flywheel.requestVoltage(3);
         flywheel.periodic();
         assertEquals(3, flywheel.getAppliedVolts(), 1e-9);
         verify(left).setPower(.25);
-        verify(right).setPower(.25);
         batteryVolts = 10;
         clearInvocations(left, right);
         step(20);
         assertEquals(10, flywheel.getBatteryVolts(), 1e-9);
         assertEquals(.3, flywheel.getPower(), 1e-9);
         verify(left).setPower(.3);
-        verify(right).setPower(.3);
         verify(left, never()).setVelocity(anyDouble());
-        verify(right, never()).setVelocity(anyDouble());
     }
 
-    @Test public void oneConnectedEncoderControlsBothBeltedMotorsAndCanReachReady() {
-        rpm(1000, 0); // Only the left encoder cable is connected.
+    @Test public void ownEncoderClosesTheLoopAndCanReachReady() {
+        rpm(1000, 0);
         enable();
         flywheel.requestRpm(1000);
         flywheel.periodic();
@@ -136,17 +99,15 @@ public class ShooterFlywheelTest {
         assertTrue(flywheel.isAtSpeed());
         assertEquals(2, flywheel.getAppliedVolts(), 1e-9);
         verify(left, atLeastOnce()).setPower(2.0 / 12);
-        verify(right, atLeastOnce()).setPower(2.0 / 12);
-        verify(right, never()).getVelocity();
     }
 
-    @Test public void voltageCapAndAvailableBatteryLimitBothMotorsTogether() {
+    @Test public void voltageCapAndAvailableBatteryLimitOutput() {
         enable();
         flywheel.requestVoltage(6);
         flywheel.periodic();
         assertEquals(3, flywheel.getAppliedVolts(), 1e-9);
         assertTrue(flywheel.isOutputLimited());
-        ShooterFlywheel.maxVoltage = 12;
+        settings.maxVoltage = 12;
         batteryVolts = 9;
         flywheel.requestVoltage(12);
         step(20);
@@ -155,9 +116,9 @@ public class ShooterFlywheelTest {
         assertTrue(flywheel.isOutputLimited());
     }
 
-    @Test public void velocityUses28TicksPerRevolutionFromOnlyTheLeftEncoder() {
-        ShooterFlywheel.kV = 0;
-        ShooterFlywheel.maxAccelerationRpmPerSecond = 10000;
+    @Test public void velocityUsesConfiguredMotorEncoderResolution() {
+        settings.kV = 0;
+        settings.maxAccelerationRpmPerSecond = 10000;
         rpm(1000, 1200);
         enable();
         flywheel.requestRpm(1200);
@@ -169,14 +130,13 @@ public class ShooterFlywheelTest {
         assertEquals(.4, flywheel.getFeedbackVolts(), 1e-9);
         assertEquals(.4 / 12, flywheel.getPower(), 1e-9);
         verify(left).setPower(.4 / 12);
-        verify(right).setPower(.4 / 12);
     }
 
     @Test public void feedforwardUsesRpmAndRpmPerSecondFromAccelerationLimitedReference() {
-        ShooterFlywheel.kP = 0;
-        ShooterFlywheel.kS = .2;
-        ShooterFlywheel.kV = .001;
-        ShooterFlywheel.kA = .0001;
+        settings.kP = 0;
+        settings.kS = .2;
+        settings.kV = .001;
+        settings.kA = .0001;
         enable();
         flywheel.requestRpm(1000);
         flywheel.periodic();
@@ -193,7 +153,7 @@ public class ShooterFlywheelTest {
     }
 
     @Test public void repeatedHeldRequestDoesNotRestartRampAndRetargetingDoesNotJumpReference() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
+        settings.kP = settings.kV = 0;
         enable();
         flywheel.requestRpm(1000);
         flywheel.periodic();
@@ -219,13 +179,12 @@ public class ShooterFlywheelTest {
         assertEquals(ShooterFlywheel.Mode.OFF, flywheel.getMode());
         assertEquals(0, flywheel.getPower(), 0);
         verify(left).setPower(0);
-        verify(right).setPower(0);
         step(20);
         assertFalse(flywheel.isAtSpeed());
     }
 
     @Test public void readyRequiresFinalReferenceThenContinuousDwellAndFreshSamples() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
+        settings.kP = settings.kV = 0;
         rpm(1000, 1000);
         enable();
         flywheel.requestRpm(2000);
@@ -245,9 +204,9 @@ public class ShooterFlywheelTest {
         assertFalse(flywheel.isAtSpeed());
     }
 
-    @Test public void onlyLeftFeedbackDeterminesSpeedToleranceAndDwell() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
-        ShooterFlywheel.rpmTolerance = 50;
+    @Test public void ownFeedbackDeterminesSpeedToleranceAndDwell() {
+        settings.kP = settings.kV = 0;
+        settings.rpmTolerance = 50;
         rpm(900, 1100);
         enable();
         flywheel.requestRpm(1000);
@@ -274,7 +233,6 @@ public class ShooterFlywheelTest {
             assertEquals(ShooterFlywheel.Mode.VOLTAGE, flywheel.getMode());
             assertEquals(1, flywheel.getAppliedVolts(), 1e-9);
         }
-        verify(right, never()).getVelocity();
     }
 
     @Test public void wrongEncoderDirectionLatchesFaultUntilReleased() {
@@ -304,6 +262,87 @@ public class ShooterFlywheelTest {
         assertEquals(0, flywheel.getPower(), 0);
     }
 
+    @Test public void feedforwardTuningRunsWithoutEncoderAndRestartsAfterZeroGain() {
+        enable();
+        settings.maxVoltage = 12;
+        ShooterFlywheel.SpeedTuning tuning = new ShooterFlywheel.SpeedTuning();
+        tuning.kV = 0.2;
+        for (int ms = 0; ms <= 1600; ms += 200) {
+            now.set(ms * 1_000_000L);
+            flywheel.updateTuningRpm(3000, tuning);
+        }
+        assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
+
+        tuning.kP = 0;
+        for (int ms = 1800; ms <= 6800; ms += 200) {
+            now.set(ms * 1_000_000L);
+            flywheel.updateTuningRpm(3000, tuning);
+        }
+        assertEquals(ShooterFlywheel.Mode.FEEDFORWARD, flywheel.getMode());
+        assertEquals(12, flywheel.getAppliedVolts(), 0);
+        assertTrue(flywheel.isOutputLimited());
+
+        tuning.kV = 0;
+        flywheel.updateTuningRpm(3000, tuning);
+        assertEquals(ShooterFlywheel.Mode.OFF, flywheel.getMode());
+        assertEquals(0, flywheel.getPower(), 0);
+
+        now.addAndGet(1_000_000_000L);
+        tuning.kV = 0.2;
+        flywheel.updateTuningRpm(3000, tuning);
+        assertEquals(ShooterFlywheel.Mode.FEEDFORWARD, flywheel.getMode());
+        assertEquals(1, flywheel.getPower(), 0);
+    }
+
+    @Test public void rpmTuningRecoversAfterALoopGapAndKeepsRunningBelowTarget() {
+        enable();
+        settings.maxVoltage = 12;
+        settings.maxAccelerationRpmPerSecond = 6000;
+        rpm(1000, 0);
+        ShooterFlywheel.SpeedTuning tuning = new ShooterFlywheel.SpeedTuning(0.002, 0.002, false);
+        flywheel.updateTuningRpm(2000, tuning);
+        assertTrue(flywheel.getPower() > 0);
+
+        now.set(300_000_000L);
+        flywheel.updateTuningRpm(2000, tuning);
+        assertEquals(0, flywheel.getPower(), 0);
+
+        for (int ms = 400; ms <= 5000; ms += 100) {
+            now.set(ms * 1_000_000L);
+            flywheel.updateTuningRpm(2000, tuning);
+        }
+        assertEquals(ShooterFlywheel.Mode.VELOCITY, flywheel.getMode());
+        assertTrue(flywheel.getPower() > 0);
+        assertFalse(flywheel.isAtSpeed());
+    }
+
+    @Test public void tuningReversalBrakesBeforeResumingRpmControl() {
+        enable();
+        ShooterFlywheel.SpeedTuning tuning = new ShooterFlywheel.SpeedTuning();
+        rpm(1200, 0);
+        flywheel.updateTuningRpm(1200, tuning);
+        assertTrue(flywheel.getPower() > 0);
+
+        clearInvocations(left);
+        assertFalse(flywheel.prepareTuningDirection(true));
+        InOrder commands = inOrder(left);
+        commands.verify(left).setPower(0);
+        commands.verify(left).setDirection(DcMotorSimple.Direction.REVERSE);
+
+        now.set(500_000_000L);
+        rpm(-1200, 0);
+        assertFalse(flywheel.prepareTuningDirection(true));
+        assertEquals(0, flywheel.getPower(), 0);
+
+        rpm(0, 0);
+        assertTrue(flywheel.prepareTuningDirection(true));
+        flywheel.updateTuningRpm(1200, tuning);
+        now.addAndGet(100_000_000L);
+        flywheel.updateTuningRpm(1200, tuning);
+        assertEquals(ShooterFlywheel.Mode.VELOCITY, flywheel.getMode());
+        assertTrue(flywheel.getPower() > 0);
+    }
+
     @Test public void staleControlLoopCannotResumePowerWithoutRelease() {
         enable();
         rpm(1000, 1000);
@@ -313,7 +352,6 @@ public class ShooterFlywheelTest {
         step(251);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
         flywheel.requestVoltage(1);
         step(270);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
@@ -338,7 +376,6 @@ public class ShooterFlywheelTest {
             assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         }
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
     }
 
     @Test public void impossibleTargetOrGainFailsClosed() {
@@ -350,18 +387,17 @@ public class ShooterFlywheelTest {
             assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         }
         flywheel.idle();
-        ShooterFlywheel.kV = Double.NaN;
+        settings.kV = Double.NaN;
         flywheel.requestRpm(1000);
         flywheel.periodic();
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
     }
 
     @Test public void integralDoesNotWindUpWhenFeedforwardAloneExceedsVoltageCap() {
-        ShooterFlywheel.kP = 0;
-        ShooterFlywheel.kI = .001;
-        ShooterFlywheel.kV = .003;
+        settings.kP = 0;
+        settings.kI = .001;
+        settings.kV = .003;
         rpm(1000, 1000);
         enable();
         flywheel.requestRpm(2000);
@@ -372,10 +408,10 @@ public class ShooterFlywheelTest {
         assertEquals(0, flywheel.getFeedbackVolts(), 1e-9);
     }
 
-    @Test public void integralAccumulatesInSecondsAndDashboardGainEditClearsItsHistory() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
-        ShooterFlywheel.kI = .001;
-        ShooterFlywheel.maxAccelerationRpmPerSecond = 10000;
+    @Test public void integralAccumulatesInSecondsAndPanelsGainEditClearsItsHistory() {
+        settings.kP = settings.kV = 0;
+        settings.kI = .001;
+        settings.maxAccelerationRpmPerSecond = 10000;
         enable();
         flywheel.requestRpm(1000);
         flywheel.periodic();
@@ -383,25 +419,25 @@ public class ShooterFlywheelTest {
         assertEquals(.1, flywheel.getFeedbackVolts(), 1e-9);
         step(200);
         assertEquals(.2, flywheel.getFeedbackVolts(), 1e-9);
-        ShooterFlywheel.kI = .002;
+        settings.kI = .002;
         flywheel.periodic();
         assertEquals(0, flywheel.getFeedbackVolts(), 1e-9);
     }
 
-    @Test public void dashboardVoltageCapEditTakesEffectOnNextLoop() {
+    @Test public void panelsVoltageCapEditTakesEffectOnNextLoop() {
         enable();
         flywheel.requestVoltage(3);
         flywheel.periodic();
         assertEquals(3, flywheel.getAppliedVolts(), 1e-9);
-        ShooterFlywheel.maxVoltage = 1;
+        settings.maxVoltage = 1;
         step(20);
         assertEquals(1, flywheel.getAppliedVolts(), 1e-9);
         assertEquals(1.0 / 12, flywheel.getPower(), 1e-9);
     }
 
     @Test public void fallingBelowSpeedAfterReadyRestartsTrackingTimeout() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
-        ShooterFlywheel.spinupTimeoutMs = 300;
+        settings.kP = settings.kV = 0;
+        settings.spinupTimeoutMs = 300;
         rpm(1000, 1000);
         enable();
         flywheel.requestRpm(1000);
@@ -415,9 +451,9 @@ public class ShooterFlywheelTest {
     }
 
     @Test public void newTargetGetsItsRampTimeBeforeTrackingTimeoutStarts() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
-        ShooterFlywheel.maxAccelerationRpmPerSecond = 10000;
-        ShooterFlywheel.spinupTimeoutMs = 300;
+        settings.kP = settings.kV = 0;
+        settings.maxAccelerationRpmPerSecond = 10000;
+        settings.spinupTimeoutMs = 300;
         rpm(500, 500);
         enable();
         flywheel.requestRpm(1000);
@@ -451,7 +487,7 @@ public class ShooterFlywheelTest {
         assertEquals(0, flywheel.getPower(), 0);
     }
 
-    @Test public void leftFeedbackControlsBothMotorsEvenIfReadingTheRightWouldThrow() {
+    @Test public void unrelatedMotorCannotAffectThisShooter() {
         when(right.getVelocity()).thenThrow(new IllegalStateException("Unused encoder must not be read"));
         when(left.getVelocity()).thenReturn(1000.0 * 28 / 60);
         enable();
@@ -462,36 +498,32 @@ public class ShooterFlywheelTest {
         assertTrue(flywheel.isAtSpeed());
         assertEquals(1000, flywheel.getMeasuredRpm(), 1e-9);
         assertEquals(2, flywheel.getAppliedVolts(), 1e-9);
-        verify(right, never()).getVelocity();
         verify(left, atLeastOnce()).setPower(2.0 / 12);
-        verify(right, atLeastOnce()).setPower(2.0 / 12);
     }
 
-    @Test public void rightMotorDirectionTestUsesLeftFeedbackThroughTheBelt() {
+    @Test public void directionTestUsesOwnEncoder() {
         rpm(500, 0);
         flywheel.enable();
-        flywheel.requestMotorTest(false);
+        flywheel.requestMotorTest();
         flywheel.periodic();
         step(250); step(500); step(750); step(1000); step(1250);
-        assertEquals(ShooterFlywheel.Mode.RIGHT_TEST, flywheel.getMode());
+        assertEquals(ShooterFlywheel.Mode.DIRECTION_TEST, flywheel.getMode());
         assertEquals(500, flywheel.getMeasuredRpm(), 1e-9);
-        verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, atLeastOnce()).setPower(1.0 / 12);
+        verify(left, atLeastOnce()).setPower(1.0 / 12);
         verify(right, never()).getVelocity();
     }
 
-    @Test public void rightMotorTestStopsWhenTheLeftEncoderDoesNotTurn() {
+    @Test public void directionTestStopsWhenOwnEncoderDoesNotTurn() {
         rpm(0, 1000);
         flywheel.enable();
-        flywheel.requestMotorTest(false);
+        flywheel.requestMotorTest();
         flywheel.periodic();
         step(250); step(500); step(750); step(1000);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         assertEquals(0, flywheel.getPower(), 0);
-        verify(right, never()).getVelocity();
     }
 
-    @Test public void leftEncoderStallStopsBothDespiteAnUnusedRightReading() {
+    @Test public void ownEncoderStallStopsMotorDespiteUnrelatedMotorReading() {
         rpm(0, 1000);
         enable();
         flywheel.requestVoltage(1);
@@ -499,7 +531,6 @@ public class ShooterFlywheelTest {
         step(250); step(500); step(750); step(1000);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         assertEquals(0, flywheel.getPower(), 0);
-        verify(right, never()).getVelocity();
     }
 
     @Test public void editingMotorDirectionInvalidatesReadinessAndRequiresReinit() {
@@ -509,22 +540,20 @@ public class ShooterFlywheelTest {
         flywheel.periodic();
         step(125); step(250);
         assertTrue(flywheel.isAtSpeed());
-        ShooterFlywheel.leftReversed = true;
+        settings.reversed = true;
         assertFalse(flywheel.isAtSpeed());
         assertFalse(flywheel.hasFreshSample());
         clearInvocations(left, right);
         step(270);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         verify(left).setPower(0);
-        verify(right).setPower(0);
         flywheel.idle(); flywheel.requestVoltage(1); step(290);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
-        verify(right, never()).getVelocity();
     }
 
     @Test public void derivativeRespondsToMeasuredAccelerationWithoutSetpointKickOrReversePower() {
-        ShooterFlywheel.kP = ShooterFlywheel.kV = 0;
-        ShooterFlywheel.kD = .001;
+        settings.kP = settings.kV = 0;
+        settings.kD = .001;
         rpm(1000, 1000);
         enable();
         flywheel.requestRpm(2000);
@@ -537,30 +566,27 @@ public class ShooterFlywheelTest {
         assertEquals(0, flywheel.getPower(), 0);
         assertTrue(flywheel.isOutputLimited());
         verify(left, never()).setPower(doubleThat(power -> power < 0));
-        verify(right, never()).setPower(doubleThat(power -> power < 0));
     }
 
-    @Test public void dashboardDirectionEditStopsUntilHardwareIsReinitialized() {
+    @Test public void panelsDirectionEditStopsUntilHardwareIsReinitialized() {
         enable();
         rpm(1000, 1000);
         flywheel.requestVoltage(1);
         flywheel.periodic();
-        ShooterFlywheel.rightReversed = true;
+        settings.reversed = true;
         clearInvocations(left, right);
         step(20);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
     }
 
-    @Test public void stopAttemptsBothMotorsEvenWhenOneControllerThrows() {
+    @Test public void failedStopStillLatchesTerminalState() {
         enable();
         flywheel.requestVoltage(1);
         flywheel.periodic();
         clearInvocations(left, right);
         doThrow(new IllegalStateException("disconnected")).when(left).setPower(0);
         assertThrows(IllegalStateException.class, flywheel::stop);
-        verify(right).setPower(0);
         doNothing().when(left).setPower(0);
         clearInvocations(left, right);
         flywheel.enable();
@@ -568,10 +594,9 @@ public class ShooterFlywheelTest {
         flywheel.requestVoltage(1);
         flywheel.periodic();
         verify(left, never()).setPower(doubleThat(power -> power != 0));
-        verify(right, never()).setPower(doubleThat(power -> power != 0));
     }
 
-    @Test public void encoderReadExceptionStopsBothPreviouslyPoweredMotors() {
+    @Test public void encoderReadExceptionStopsPreviouslyPoweredMotor() {
         enable();
         flywheel.requestVoltage(1);
         flywheel.periodic();
@@ -580,11 +605,25 @@ public class ShooterFlywheelTest {
         assertThrows(IllegalStateException.class, flywheel::periodic);
         assertEquals(ShooterFlywheel.Mode.FAULT, flywheel.getMode());
         verify(left).setPower(0);
-        verify(right).setPower(0);
+    }
+
+    @Test public void encoderResolutionIsPerShooterAndCannotChangeWhileRunning() {
+        ShooterFlywheel.Settings otherSettings = new ShooterFlywheel.Settings("launcherRight");
+        otherSettings.ticksPerRevolution = 56;
+        otherSettings.directionVerified = true;
+        ShooterFlywheel other = new ShooterFlywheel(right, otherSettings, () -> batteryVolts, now::get);
+        when(right.getVelocity()).thenReturn(560.0);
+        other.enable(); other.requestVoltage(1); other.periodic();
+        assertEquals(600, other.getMeasuredRpm(), 1e-9);
+        otherSettings.ticksPerRevolution = 28;
+        other.periodic();
+        assertEquals(ShooterFlywheel.Mode.FAULT, other.getMode());
+        assertEquals(0, other.getPower(), 0);
+        assertEquals(28, settings.ticksPerRevolution, 0);
     }
 
     private void enable() {
-        ShooterFlywheel.directionsVerified = true;
+        settings.directionVerified = true;
         flywheel.enable();
     }
 

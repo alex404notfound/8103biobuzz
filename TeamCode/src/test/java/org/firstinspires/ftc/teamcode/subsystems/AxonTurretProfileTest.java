@@ -148,7 +148,7 @@ public class AxonTurretProfileTest {
         assertEquals(0, turret.getFeedbackPower(), 1e-8);
     }
 
-    @Test public void liveDashboardGainsApplyToTheRunningInstanceAndResetIntegral() {
+    @Test public void livePanelsGainsApplyToTheRunningInstanceAndResetIntegral() {
         startMove(60);
         step(100, 0); // Profile: 0.3 degrees, 6 deg/s, 60 deg/s^2.
         assertEquals(0, turret.getOutput(), 0);

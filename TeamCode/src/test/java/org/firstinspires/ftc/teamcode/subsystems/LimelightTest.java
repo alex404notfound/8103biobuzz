@@ -59,6 +59,31 @@ public class LimelightTest {
         verify(drive, never()).applyVisionTranslation(any());
     }
 
+    @Test public void failedCameraStartupClosesItsUnownedWorkerAndPreservesTheFailure() {
+        Limelight3A failedCamera = mock(Limelight3A.class);
+        ScheduledExecutorService worker = mock(ScheduledExecutorService.class);
+        OrientationPublisher publisher = new OrientationPublisher(() -> true, heading -> true, worker, now::get);
+        RuntimeException failure = new IllegalStateException("Camera startup failed");
+        RuntimeException stopFailure = new IllegalStateException("Camera stop failed");
+        doThrow(failure).when(failedCamera).start();
+        doThrow(stopFailure).when(failedCamera).stop();
+        assertSame(failure, assertThrows(RuntimeException.class,
+                () -> new Limelight(failedCamera, drive, mock(Telemetry.class), 0, publisher, now::get)));
+        verify(worker).shutdownNow();
+        verify(failedCamera).stop();
+        assertArrayEquals(new Throwable[]{stopFailure}, failure.getSuppressed());
+    }
+
+    @Test public void workerShutdownFailureStillStopsCameraPolling() {
+        Limelight3A localCamera = mock(Limelight3A.class);
+        ScheduledExecutorService worker = mock(ScheduledExecutorService.class);
+        OrientationPublisher publisher = new OrientationPublisher(() -> true, heading -> true, worker, now::get);
+        Limelight localVision = new Limelight(localCamera, drive, mock(Telemetry.class), 0, publisher, now::get);
+        doThrow(new IllegalStateException("Worker shutdown failed")).when(worker).shutdownNow();
+        assertThrows(RuntimeException.class, localVision::stop);
+        verify(localCamera).stop();
+    }
+
     @Test public void relativeTagFramesDoNotRequireADrivetrainOrHeadingFeed() {
         vision.stop();
         ScheduledExecutorService benchWorker = mock(ScheduledExecutorService.class);

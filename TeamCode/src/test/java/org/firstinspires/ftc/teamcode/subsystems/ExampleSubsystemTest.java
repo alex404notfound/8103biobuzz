@@ -35,7 +35,7 @@ public class ExampleSubsystemTest {
         clearInvocations(motor);
 
         action.cancel();
-        subsystem.periodic();
+        // NextFTC ticks mechanisms before triggers. Cancellation must not wait for another tick.
         verify(motor).setPower(0);
         assertFalse(action.isScheduled());
     }
@@ -44,6 +44,8 @@ public class ExampleSubsystemTest {
         Command action = subsystem.runWhileScheduled();
         action.schedule();
         subsystem.off().schedule();
+        verify(motor).setPower(0);
+        clearInvocations(motor);
         Scheduler.execute();
         subsystem.periodic();
         verify(motor).setPower(0);

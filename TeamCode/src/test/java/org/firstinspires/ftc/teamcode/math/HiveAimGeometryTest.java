@@ -32,40 +32,6 @@ public class HiveAimGeometryTest {
         assertEquals(v.norm(), combined.norm(), 1e-9);
     }
 
-    @Test public void opticalAxesMapToForwardLeftUpBeforeMountingRotation() {
-        assertVec(30, -10, -20, opticalToTurret(new Vec(10, 20, 30), 0, 0, 0));
-        assertVec(0, 10, 0, opticalToTurret(new Vec(0, 0, 10), 0, 0, 90));
-        assertVec(Math.sqrt(75), 0, -5, opticalToTurret(new Vec(0, 0, 10), 0, 30, 0));
-        assertVec(Math.sqrt(75), 0, 5, opticalToTurret(new Vec(0, 0, 10), 0, -30, 0));
-    }
-
-    @Test public void allOfficialTagIdsResolveTheirOwnInchOffsets() {
-        double[] offsets = {-6.5, -2.75, 2.75, 6.5};
-        for (int id = 30; id <= 45; id++) {
-            Vec cameraTag = new Vec(8 + offsets[(id - 30) % 4], -12, 72);
-            assertVec(8, -12, 72, tagCenterFromTag(cameraTag, 0, 0, 0, id));
-        }
-    }
-
-    @Test public void rotatedTagRowUsesPoseRotationRatherThanImageMidpoint() {
-        // The row extends along optical depth at 90 degrees around Y: the tags have unequal range.
-        assertVec(4, -8, 60, tagCenterFromTag(new Vec(4, -8, 66.5), 0, 90, 0, 30));
-        assertVec(4, -8, 60, tagCenterFromTag(new Vec(4, -8, 53.5), 0, 90, 0, 33));
-        assertVec(4, -8, 60, tagCenterFromTag(new Vec(4, -14.5, 60), 0, 0, 90, 30));
-    }
-
-    @Test public void tagUpKeepsSignedInclinationWhereUnsignedNormalCannot() {
-        Vec upState = opticalToTurret(tagUp(60, 0, 0), 0, 0, 0);
-        Vec downState = opticalToTurret(tagUp(120, 0, 0), 0, 0, 0);
-        assertEquals(0.5, upState.z, 1e-9);
-        assertEquals(-0.5, downState.z, 1e-9);
-        Vec upNormal = opticalToTurret(tagNormal(60, 0, 0), 0, 0, 0);
-        Vec downNormal = opticalToTurret(tagNormal(120, 0, 0), 0, 0, 0);
-        assertEquals(Math.abs(upNormal.z), Math.abs(downNormal.z), 1e-9);
-        assertEquals(1, upState.norm(), 1e-9);
-        assertEquals(1, upNormal.norm(), 1e-9);
-    }
-
     @Test public void continuousTurretUsesNearestUnwrappedEquivalent() {
         assertEquals(181, nearestTurretDegrees(-179, 179, false, 0, 0), 1e-9);
         assertEquals(-181, nearestTurretDegrees(179, -179, false, 0, 0), 1e-9);
@@ -128,8 +94,6 @@ public class HiveAimGeometryTest {
         assertTrue(Double.isNaN(nearestTurretDegrees(0, 0, true, -90, Double.POSITIVE_INFINITY)));
         assertThrows(IllegalArgumentException.class, () -> new Vec(0, Double.NaN, 0));
         assertThrows(IllegalArgumentException.class, () -> rotate(new Vec(1, 0, 0), 0, Double.NaN, 0));
-        assertThrows(IllegalArgumentException.class, () -> tagCenterFromTag(new Vec(0, 0, 1), 0, 0, 0, 29));
-        assertThrows(IllegalArgumentException.class, () -> tagCenterFromTag(new Vec(0, 0, 1), 0, 0, 0, 46));
     }
 
     private static void assertVec(double x, double y, double z, Vec actual) {

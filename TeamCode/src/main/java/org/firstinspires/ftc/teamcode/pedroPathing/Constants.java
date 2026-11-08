@@ -20,14 +20,21 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 public class Constants {
+    // Configured device names identified by the on-robot motor checks.
+    public static final String TRANSFER_MOTOR_NAME = "bigShooter";
+    public static final String BIG_SHOOTER_MOTOR_NAME = "transfer";
+
+    public static final double SHOT_STOPPER_BLOCKED_POSITION = 0.75;
+    public static final double SHOT_STOPPER_UNBLOCKED_POSITION = 0.60;
+
     public static MecanumConfig drivetrainConfig = new MecanumConfig(c -> {
-        c.frontLeftName.set("frontLeft");
-        c.frontRightName.set("frontRight");
-        c.backLeftName.set("backLeft");
+        c.frontLeftName.set("frontRight");
+        c.frontRightName.set("backLeft");
+        c.backLeftName.set("frontLeft");
         c.backRightName.set("backRight");
-        c.frontLeftDirection.set(DcMotorSimple.Direction.FORWARD);
+        c.frontLeftDirection.set(DcMotorSimple.Direction.REVERSE);
         c.backLeftDirection.set(DcMotorSimple.Direction.REVERSE);
-        c.frontRightDirection.set(DcMotorSimple.Direction.REVERSE);
+        c.frontRightDirection.set(DcMotorSimple.Direction.FORWARD);
         c.backRightDirection.set(DcMotorSimple.Direction.FORWARD);
         c.manualBrakeMode.set(true);
     });

@@ -1,0 +1,33 @@
+{
+  "version": "v2.0.0",
+  "release_url": "https://github.com/hivevisionftc/Hive-Vision/releases/tag/v2.0.0",
+  "architecture": "SSD-MobileNetV2",
+  "input_size": [
+    300,
+    300
+  ],
+  "input_type": "uint8",
+  "max_detections": 25,
+  "class_labels": [
+    "yellow_pollen",
+    "red_nectar",
+    "blue_nectar"
+  ],
+  "files": [
+    {
+      "name": "best_limelight3a_ssd_mobilenetv2_300x300_v2_int8_dets25.tflite",
+      "bytes": 5190408,
+      "sha256": "5ef2727847f9b1cff89b3c271e7a8416a67f797e43d533707037a9e41f1139dc",
+      "download_url": "https://github.com/hivevisionftc/Hive-Vision/releases/download/v2.0.0/best_limelight3a_ssd_mobilenetv2_300x300_v2_int8_dets25.tflite"
+    },
+    {
+      "name": "labels.txt",
+      "bytes": 36,
+      "sha256": "03c482bb077ac04496ff8d5d8da849688a254179172c595738c451595ae5b51a",
+      "download_url": "https://github.com/hivevisionftc/Hive-Vision/releases/download/v2.0.0/labels.txt",
+      "upstream_bytes": 38,
+      "upstream_sha256": "ff85cfdb70d88efda9efc7af7296bf94d7a6e3b0778267c3a373c20acbd89f73",
+      "normalization": "CRLF line endings converted to LF; class order and text unchanged"
+    }
+  ]
+}

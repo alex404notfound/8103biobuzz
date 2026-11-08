@@ -45,7 +45,6 @@ final class OrientationPublisher implements AutoCloseable {
     }
 
     boolean isReady() { return ready && !closed; }
-    boolean wasLastWriteSuccessful() { return lastWriteSucceeded; }
 
     boolean hasRecentHeading(double maxAgeMs) {
         Heading sent = lastSuccessfulHeading;

@@ -14,9 +14,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import com.skeletonarmy.marrow.zones.CircleZone;
+import com.skeletonarmy.marrow.zones.Point;
+import com.skeletonarmy.marrow.zones.PolygonZone;
+import com.skeletonarmy.marrow.zones.Zone;
+import org.firstinspires.ftc.teamcode.pedroPathing.MarrowPlanner;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,7 +60,7 @@ public class HivePedroControllerTest {
     }
 
     private void create() {
-        tracker = new HiveBallTracker(1, now::get);
+        tracker = new HiveBallTracker(1, true, now::get);
         control = new HivePedroController(drive, tracker, now::get);
         control.start();
     }
@@ -239,6 +245,99 @@ public class HivePedroControllerTest {
         assertThrows(IllegalStateException.class, () -> begin(50, 0));
         verify(drive).setMotorPowerLimit(1);
         verify(drive, atLeastOnce()).stop();
+    }
+
+    @Test public void marrowRouteStillUsesTheExistingPowerCapDriveOwnerAndCameraHandoff() {
+        when(drive.getPose()).thenReturn(new Pose(20, 72, 0));
+        control = new HivePedroController(drive, tracker, now::get, new MarrowPlanner(4, 4, 1,
+                new PolygonZone(new Point(72, 72), 144, 144), Collections.emptyList()));
+        control.start();
+        begin(50, 0);
+        assertNotNull(control.getPlannedRoute());
+        assertEquals(HivePedroController.Phase.TRAVEL, control.getPhase());
+        verify(drive).setMotorPowerLimit(.25);
+        ArgumentCaptor<Path> path = ArgumentCaptor.forClass(Path.class);
+        verify(drive).followPath(path.capture());
+        assertEquals(40, path.getValue().endPose().x(), 1e-8);
+        pathDone.set(true);
+        Scheduler.execute();
+        assertEquals(HivePedroController.Phase.CHASE, control.getPhase());
+        control.beforeDrive(false, false);
+        verify(drive).setMotorPowerLimit(1);
+        assertEquals(HivePedroController.Phase.ABORTED, control.getPhase());
+    }
+
+    @Test public void unreachableMarrowRouteCannotChangePowerOrStartTheFollower() {
+        when(drive.getPose()).thenReturn(new Pose(20, 72, 0));
+        control = new HivePedroController(drive, tracker, now::get, new MarrowPlanner(4, 4, 1,
+                new PolygonZone(new Point(72, 72), 144, 144), Arrays.asList(
+                new PolygonZone(new Point(10, 72), 4, 24), new PolygonZone(new Point(30, 72), 4, 24),
+                new PolygonZone(new Point(20, 62), 24, 4), new PolygonZone(new Point(20, 82), 24, 4))));
+        control.start();
+        begin(50, 0);
+        assertEquals(HivePedroController.Phase.ABORTED, control.getPhase());
+        assertTrue(control.getStatus().contains("keep-out"));
+        verify(drive, never()).followPath(any());
+        verify(drive, never()).setMotorPowerLimit(anyDouble());
+        for (int i = 0; i < 8; i++) tick(50, 0, true);
+        verify(drive, never()).followPath(any());
+    }
+
+    @Test public void nearBallCannotBypassMarrowBySkippingThePedroTravelStage() {
+        when(drive.getPose()).thenReturn(new Pose(20, 72, 0));
+        control = new HivePedroController(drive, tracker, now::get, new MarrowPlanner(4, 4, 1,
+                new PolygonZone(new Point(72, 72), 144, 144),
+                Collections.singletonList(new CircleZone(new Point(28, 72), .5))));
+        control.start();
+        begin(24, 0);
+        assertEquals(HivePedroController.Phase.ABORTED, control.getPhase());
+        verify(drive, never()).driveRobotRelative(anyDouble(), anyDouble(), anyDouble());
+        verify(drive, never()).setMotorPowerLimit(anyDouble());
+    }
+
+    @Test public void liveMarrowClearanceFaultStopsBeforeTheNextCameraOutput() {
+        when(drive.getPose()).thenReturn(new Pose(20, 72, 0));
+        control = new HivePedroController(drive, tracker, now::get, new MarrowPlanner(4, 4, 1,
+                new PolygonZone(new Point(79.5, 72), 129, 144), Collections.emptyList()));
+        control.start();
+        begin(24, 0);
+        assertEquals(HivePedroController.Phase.CHASE, control.getPhase());
+        when(drive.getPose()).thenReturn(new Pose(18, 72, 0));
+        control.beforeDrive(true, false);
+        assertEquals(HivePedroController.Phase.ABORTED, control.getPhase());
+        assertTrue(control.getStatus().contains("clearance lost"));
+        verify(drive).setMotorPowerLimit(1);
+        verify(drive, never()).driveRobotRelative(anyDouble(), anyDouble(), anyDouble());
+    }
+
+    @Test public void detourThatExhaustsTheBudgetIsRejectedBeforeStartingTheFollower() {
+        HivePedroConfig.maximumTravelInches = 33;
+        when(drive.getPose()).thenReturn(new Pose(20, 72, 0));
+        control = new HivePedroController(drive, tracker, now::get, new MarrowPlanner(4, 4, 1,
+                new PolygonZone(new Point(72, 72), 144, 144),
+                Collections.singletonList(new CircleZone(new Point(30, 72), 2))));
+        control.start();
+        begin(50, 0);
+        assertTrue(control.getStatus(), control.getStatus().contains("Detour exceeds"));
+        verify(drive, never()).followPath(any());
+        verify(drive, never()).setMotorPowerLimit(anyDouble());
+    }
+
+    @Test public void samplesThatExpireDuringPlanningCannotStartADriveCommand() {
+        Zone bounds = mock(Zone.class);
+        when(bounds.contains(any())).thenReturn(true);
+        when(bounds.distanceToBoundary(any())).thenAnswer(call -> {
+            now.addAndGet(10_000_000L);
+            return 1000.0;
+        });
+        when(drive.getPose()).thenReturn(new Pose(20, 72, 0));
+        control = new HivePedroController(drive, tracker, now::get,
+                new MarrowPlanner(4, 4, 1, bounds, Collections.emptyList()));
+        control.start();
+        begin(50, 0);
+        assertTrue(control.getStatus(), control.getStatus().contains("Sensors expired"));
+        verify(drive, never()).followPath(any());
+        verify(drive, never()).setMotorPowerLimit(anyDouble());
     }
 
     private void begin(double forward, double left) {

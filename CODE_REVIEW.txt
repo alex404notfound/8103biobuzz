@@ -1,0 +1,124 @@
+8103 integration and code review — 2026-10-19
+
+Scope
+Reviewed the current TeamCode integration, command lifecycle, hardware cleanup,
+vision setup, Gradle dependency graph and local deployment tooling. Existing
+uncommitted feature work was retained. SDK-owned build files were not changed.
+
+Findings fixed
+
+1. Motor shutdown could skip the remaining wheels after a follower, motor or
+   brake write failed. Drivetrain and AutoTune now share MotorSafety, which
+   attempts an uncached zero and BRAKE on every acquired motor. Controller
+   cleanup failures cannot bypass those writes. Additional device failures
+   are retained as suppressed exceptions within MotorSafety.
+
+2. Robot, turret, aiming and shooter diagnostics enabled MANUAL bulk caching
+   without restoring the prior hub modes. Six cache-owning components now
+   share BulkCacheSession. It restores each hub's original setting on STOP,
+   after partial INIT, and when another device's shutdown fails. The two
+   Brushland diagnostics use the same implementation instead of separate
+   restoration loops.
+
+3. Failed Limelight construction could leave its scheduled orientation worker
+   running before Robot acquired ownership. Construction failure now closes
+   the worker and camera, preserving the startup exception. Worker shutdown
+   failure also cannot bypass stopping camera polling.
+
+4. Canceling ExampleSubsystem's lifetime command only changed its mode; motor
+   zero waited for the next mechanism tick. Cancellation now stops it immediately.
+
+5. Panels had no normal robot telemetry/settings/field integration. RobotTelemetry
+   now shares data with Driver Station and Panels using JoinedTelemetry and a
+   stable NextFTC Panels backend. All 14 tuning groups use @Configurable.
+   Field, trail, route and calibration drawings now use native Panels shapes.
+   Dashboard/Slothboard, @Config and the JSON drawing bridge are removed.
+
+6. Applying a second field throttle could discard immediate localization fault
+   or recovery frames. FieldMapTelemetry owns the 10 Hz limit; native publishing
+   bypasses the second throttle for accepted frames. Field status stays current
+   in normal telemetry each loop. Capture/late clients retain complete snapshots.
+
+Library integration and cleanup
+
+- Retained FTC SDK 12.0.0, Sloth/Load 0.3.2,
+  Sloth FullPanels 0.3.2+1.0.13, Pedro 3.0.1, AutoTune 1.0.1, NextFTC v2 0.2.1,
+  Ivy core 1.1.1 and Marrow 1.2.1.
+- Added Kotlin BOM 2.4.10. Previously stdlib resolved to 2.4.10 while reflection
+  remained at 2.3.0; both now resolve to 2.4.10, matching Sloth's requirement.
+- Integrated the Sloth-compatible FullPanels bundle, including normal telemetry,
+  live configurables, graphs, native field/Capture frames and its browser plugins.
+  Original Panels artifacts are excluded to avoid duplicate classes. Dashboard
+  and Slothboard are removed and excluded from transitive resolution. Panels'
+  Limelight plugin now owns the forwarding ports and supplies its camera widgets.
+  The camera web UI remains at :5801; SDK polling and vision controls are retained.
+  AutoTune 1.0.1 retains its own HTTP/WebSocket UI.
+- Removed FTCLib and a test that only exercised FTCLib's own PID controller.
+  No application code used it. Marrow's optional legacy command adapters are
+  not used; Weaver plans geometry for the existing Ivy/Pedro drive command.
+- Removed Ivy's Pedro adapter: Drivetrain replaced every callback it supplied.
+  The direct Ivy command retains drive ownership, end-hold settling and
+  immediate cancellation cleanup, with one scheduler owned by NextFTC.
+- Consolidated detector-camera startup for stationary and moving tests,
+  including cleanup when pipeline selection or camera startup fails.
+- Removed redundant pose validation, unused vision accessors, the unused
+  turnInPlace wrapper and duplicate shooter hardware lookups.
+- Updated the local dependency and NextFTC guides to reflect this setup.
+
+Verification
+
+435 Java tests passed; zero failures, errors or skips. This includes 18 new
+regressions across cleanup and Panels (updated for native APIs), plus tests for NextFTC
+registration/hooks, published Pedro/Weaver behavior, command ownership, vision
+freshness and tuning interlocks. Panels tests use the published scanner, nested
+setting setters, telemetry wrapper, native Field manager and browser transforms.
+One external-library-only test was removed.
+
+assembleDebug, assembleSloth and the APK duplicate-class check passed.
+The resolved runtime graph includes Sloth FullPanels and its Limelight proxy,
+and contains no Dashboard/Slothboard artifact. APK inspection confirms the native
+Telemetry/Field/Configurables/Graph/Capture/Limelight plugins and assets, with no
+Dashboard class definitions or web assets. FTCLib and the redundant Ivy Pedro
+adapter remain removed. Kotlin stdlib and reflect both resolve to 2.4.10.
+
+Marrow's unused upstream RoadRunner adapters retain a TelemetryPacket type
+reference in their bytecode. No Dashboard implementation is packaged or required
+by our Weaver geometry / Ivy command path; these optional adapters are not used.
+
+The host tooling suite passed 33 tests, including the fake-device Gradle/Sloth
+deployment checks. One PowerShell-only test was skipped because PowerShell
+Core is not installed. No robot was contacted. git diff --check passed.
+
+lintDebug completed with zero reported errors and the same 23 warning findings
+as the baseline: 12 SDK/native 16-KB alignment warnings and 11 resource warnings.
+Robot configuration XML and webcam calibration resources are discovered through
+SDK scanning, so a lack of direct Java references does not justify deleting them.
+The bundled lint Kotlin analyzer also logs metadata-version diagnostics for the
+Kotlin 2.4 Sloth/Panels libraries. This limits its Kotlin dependency
+analysis; it does not prevent the Java tests or APK/Sloth builds. JDK 25's Java-8
+target warnings and Gradle deprecations also remain in the SDK/plugin toolchain.
+
+Deployment and remaining verification
+
+A full APK install is required before the next Sloth reload because the runtime
+dependency set changed. Verify registration, INIT/STOP, switching between
+diagnostics, telemetry and one short tuned path on the robot. Desktop checks
+do not validate wiring, measured gains, camera geometry or physical motion.
+See PANELS_SETUP.txt for browser access, graphs, field setup and Capture/replay.
+
+Reproduce desktop validation:
+python3 tools/run_gradle.py :TeamCode:testDebugUnitTest :TeamCode:assembleDebug :TeamCode:assembleSloth :TeamCode:lintDebug :TeamCode:dependencies --configuration debugRuntimeClasspath
+FTC_TOOLS_HOME="$PWD/.tools" FTC_SLOTH_TEST_SDK="$PWD" python3 -m unittest discover -s tests -v
+
+References checked against the published versions:
+https://nextftc.dev/robot/nextopmode/
+https://repo.maven.apache.org/maven2/dev/nextftc/v2/robot/0.2.1/robot-0.2.1-sources.jar
+https://repo.maven.apache.org/maven2/com/pedropathing/ivy/pedro/1.1.1/pedro-1.1.1-sources.jar
+https://repo.maven.apache.org/maven2/com/pedropathing/tuning/1.0.1/tuning-1.0.1-sources.jar
+
+Panels source/API references:
+https://panels.bylazar.com/
+https://repo.dairy.foundation/releases/com/bylazar/sloth/fullpanels/maven-metadata.xml
+https://repo.dairy.foundation/releases/com/bylazar/sloth/telemetry/0.3.2+1.0.5/telemetry-0.3.2+1.0.5-sources.jar
+https://repo.dairy.foundation/releases/com/bylazar/sloth/configurables/0.3.2+1.0.5/configurables-0.3.2+1.0.5-sources.jar
+https://repo.dairy.foundation/releases/com/bylazar/sloth/field/0.3.2+1.0.7/field-0.3.2+1.0.7-sources.jar

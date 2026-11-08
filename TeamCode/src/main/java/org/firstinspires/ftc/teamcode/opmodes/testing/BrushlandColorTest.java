@@ -1,23 +1,26 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
 import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.hardware.BrushlandColorSensor;
+import org.firstinspires.ftc.teamcode.hardware.BulkCacheSession;
 import org.firstinspires.ftc.teamcode.robot.Alliance;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.LongSupplier;
 
 /** Sensor-only diagnostic. Requires two digital inputs and a REV hub; commands no actuators. */
+@Disabled
 @TeleOp(name = "Brushland Color Test", group = "Diagnostics")
 public class BrushlandColorTest extends OpMode {
     private static final long TELEMETRY_PERIOD_NS = 100_000_000L;
     private BrushlandColorSensor sensor;
     private List<LynxModule> hubs;
-    private final List<LynxModule.BulkCachingMode> previousModes = new ArrayList<>();
+    private final BulkCacheSession bulkCache = new BulkCacheSession();
     private final LongSupplier clock;
     private Alliance alliance = Alliance.RED;
     private boolean started;
@@ -45,18 +48,15 @@ public class BrushlandColorTest extends OpMode {
     }
 
     @Override public void init() {
+        telemetry = withBrowserTelemetry(telemetry);
         if (sensor == null) sensor = new BrushlandColorSensor(hardwareMap);
         if (hubs == null) hubs = hardwareMap.getAll(LynxModule.class);
-        try {
-            for (LynxModule hub : hubs) {
-                previousModes.add(hub.getBulkCachingMode());
-                hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-            }
-        } catch (RuntimeException failure) {
-            restoreBulkModes();
-            throw failure;
-        }
+        bulkCache.enable(hubs);
         telemetry.setMsTransmissionInterval(100);
+    }
+
+    protected Telemetry withBrowserTelemetry(Telemetry driverTelemetry) {
+        return RobotTelemetry.forOpMode(driverTelemetry);
     }
 
     @Override public void init_loop() {
@@ -93,7 +93,7 @@ public class BrushlandColorTest extends OpMode {
         previousCycleStart = cycleStart;
 
         // This is the ONLY cache clear for this cycle. Both digital channels share the cache.
-        for (LynxModule hub : hubs) hub.clearBulkCache();
+        bulkCache.clear();
         sensor.update();
         long now = clock.getAsLong();
         long readDuration = now - cycleStart;
@@ -127,14 +127,6 @@ public class BrushlandColorTest extends OpMode {
     @Override public void stop() {
         if (stopped) return;
         stopped = true;
-        restoreBulkModes();
-    }
-
-    private void restoreBulkModes() {
-        // Save each mode before changing it so a partial initialization is also restorable.
-        for (int i = 0; i < previousModes.size(); i++) {
-            hubs.get(i).setBulkCachingMode(previousModes.get(i));
-        }
-        previousModes.clear();
+        bulkCache.close();
     }
 }

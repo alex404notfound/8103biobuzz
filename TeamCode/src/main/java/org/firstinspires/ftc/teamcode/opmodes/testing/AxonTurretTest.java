@@ -1,24 +1,22 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.qualcomm.hardware.lynx.LynxModule;
+import com.bylazar.configurables.annotations.Configurable;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.hardware.BulkCacheSession;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 import org.firstinspires.ftc.teamcode.subsystems.AxonTurret;
 
-import java.util.Collections;
-import java.util.List;
-
 /** Standalone practice test: no drivetrain, launcher, Pinpoint or camera required. */
-@Config
+@Configurable
+@Disabled
 @TeleOp(name = "Axon Turret Test", group = "Prototyping")
 public class AxonTurretTest extends OpMode {
     public static volatile double targetDegrees = 0, targetStepDegrees = 5;
     private AxonTurret turret;
-    private List<LynxModule> hubs = Collections.emptyList();
+    private final BulkCacheSession bulkCache = new BulkCacheSession();
     private boolean active, stopped, releaseRequired;
 
     public AxonTurretTest() { }
@@ -30,10 +28,9 @@ public class AxonTurretTest extends OpMode {
 
     @Override public void init() {
         active = false; stopped = false; releaseRequired = true;
-        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+        telemetry = RobotTelemetry.forOpMode(telemetry);
         try {
-            hubs = hardwareMap.getAll(LynxModule.class);
-            for (LynxModule hub : hubs) hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+            bulkCache.enable(hardwareMap);
             turret = new AxonTurret(hardwareMap);
             targetDegrees = 0;
         } catch (RuntimeException failure) {
@@ -45,7 +42,7 @@ public class AxonTurretTest extends OpMode {
     @Override public void init_loop() {
         if (stopped) return;
         tick();
-        telemetry.addLine("INIT: raw encoder readout only. Configure AxonTurret in Dashboard.");
+        telemetry.addLine("INIT: raw encoder readout only. Configure AxonTurret in Panels.");
         telemetry.update();
     }
 
@@ -101,7 +98,7 @@ public class AxonTurretTest extends OpMode {
     }
 
     private void tick() {
-        for (LynxModule hub : hubs) hub.clearBulkCache();
+        bulkCache.clear();
         turret.periodic();
         telemetry.addData("Turret mode / status", turret.getMode() + " / " + turret.getStatus());
         telemetry.addData("Encoder volts / wrapped shaft deg", "%.3f / %.2f", turret.getVoltage(), turret.getWrappedDegrees());
@@ -109,7 +106,7 @@ public class AxonTurretTest extends OpMode {
         telemetry.addData("Zero established", turret.hasReference());
         telemetry.addData("Turret deg / deg per second", "%.2f / %.2f", turret.getPositionDegrees(), turret.getVelocityDegreesPerSecond());
         telemetry.addData("Target deg / error deg", "%.2f / %.2f", targetDegrees, turret.getErrorDegrees());
-        // Separate numeric series can be graphed directly in Dashboard during tuning.
+        // Separate numeric series can be graphed directly in Panels during tuning.
         telemetry.addData("turret.actualDeg", turret.getPositionDegrees());
         telemetry.addData("turret.goalDeg", targetDegrees);
         telemetry.addData("turret.profileDeg", turret.getProfilePositionDegrees());
@@ -124,17 +121,19 @@ public class AxonTurretTest extends OpMode {
                 + turret.isProfileFinished() + " / " + turret.getProfileDurationSeconds());
         telemetry.addData("Output limited", turret.isOutputLimited());
         telemetry.addData("Power / at target", turret.getOutput() + " / " + turret.isAtTarget());
-        telemetry.addData("Servo turns per turret turn", AxonTurret.servoTurnsPerTurretTurn);
+        telemetry.addData("Turret gear preset", turret.getGearPreset());
+        telemetry.addData("Servo turns per turret turn", turret.getServoTurnsPerTurretTurn());
         telemetry.addData("Travel limits", AxonTurret.limitTravel ? AxonTurret.minDegrees + " .. " + AxonTurret.maxDegrees : "DISABLED (continuous travel)");
         telemetry.addLine("LB + left stick X: manual jog | RT: hold profiled PID + feedforward | X: cancel");
         telemetry.addLine("B: mark physical zero | Y: clear fault (release all motion first)");
-        telemetry.addLine("Left/right: target step | A: target zero | Dashboard: AxonTurret gains / AxonTurretTest target");
+        telemetry.addLine("Left/right: target step | A: target zero | Panels: AxonTurret gains / AxonTurretTest target");
         telemetry.addLine("Practice only. RAW JOG has no travel limits until zero is established.");
     }
 
     @Override public void stop() {
         if (stopped) return;
         stopped = true; active = false;
-        if (turret != null) turret.stop();
+        try { if (turret != null) turret.stop(); }
+        finally { bulkCache.close(); }
     }
 }

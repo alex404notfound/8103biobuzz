@@ -53,6 +53,19 @@ public class HiveBallTrackerTest {
         assertEquals(4, tracker.getDistinctFrames());
     }
 
+    @Test public void v2CanSelectTheTwentyFifthDetectionAndRejectLowConfidenceClutter() {
+        HiveVisionConfig.minimumConfidence = 0.80;
+        tracker = new HiveBallTracker(1, now::get);
+        DetectorResult[] balls = new DetectorResult[25];
+        Arrays.fill(balls, detection(0, 0, -30, .79)); // Lower but below the v2 threshold.
+        balls[24] = detection(0, 5, -10, .80);
+        for (int i = 1; i <= 4; i++) tracker.update(frame(i, balls));
+        assertEquals(25, tracker.getDetections().size());
+        assertNotNull(tracker.getTarget());
+        assertEquals(5, tracker.getTarget().txDegrees, 0);
+        assertEquals(.80, tracker.getTarget().confidence, 0);
+    }
+
     @Test public void staleRepeatedHttpResponsesLoseTargetAndCannotRefreshItsAge() {
         confirm(detection(0, 0, 0, 0.9));
         now.set(TimeUnit.MILLISECONDS.toNanos(151));
@@ -189,6 +202,46 @@ public class HiveBallTrackerTest {
         assertEquals(0, tracker.getTarget().position.leftInches, 1e-9);
     }
 
+    @Test public void lowerOutOfRangeBallCannotHideAUsableFloorTarget() {
+        configureFloorGeometry();
+        tracker = new HiveBallTracker(1, true, now::get);
+        DetectorResult outside = floorBall(27, 14), usable = floorBall(29, 0);
+        for (int i = 1; i <= 4; i++) tracker.update(frame(i, outside, usable));
+
+        assertEquals(2, tracker.getDetections().size());
+        assertNull(tracker.getDetections().get(0).position);
+        assertNotNull(tracker.getTarget());
+        assertNotNull(tracker.getTarget().position);
+        assertEquals(29, tracker.getTarget().position.forwardInches, 1e-9);
+        assertEquals(0, tracker.getTarget().position.leftInches, 1e-9);
+    }
+
+    @Test public void floorTrackLosesConfirmationWhenItLeavesTheWorkingArea() {
+        configureFloorGeometry();
+        tracker = new HiveBallTracker(1, true, now::get);
+        confirm(floorBall(27, 12));
+        long previousTrack = tracker.getTrackId();
+
+        // This small angular change still matches the old track, but its range exceeds 30 inches.
+        tracker.update(frame(5, floorBall(27, 14)));
+        assertNull(tracker.getTarget());
+        assertEquals(0, tracker.getConfirmationStreak());
+        assertEquals(0, tracker.getTrackId());
+
+        tracker.update(frame(6, floorBall(27, 12)));
+        assertNull(tracker.getTarget());
+        assertEquals(1, tracker.getConfirmationStreak());
+        assertNotEquals(previousTrack, tracker.getTrackId());
+    }
+
+    @Test public void stationaryCameraCanStillTrackAnglesOutsideTheFloorWorkingArea() {
+        configureFloorGeometry();
+        tracker = new HiveBallTracker(1, now::get);
+        confirm(floorBall(27, 14));
+        assertNull(tracker.getTarget().position);
+        assertTrue(Double.isFinite(tracker.getTarget().txDegrees));
+    }
+
     @Test public void invalidConfigurationFailsBeforeCameraAccessAndSettingsAreCapturedAtInit() {
         HiveVisionConfig.minimumConfidence = Double.NaN;
         assertThrows(IllegalArgumentException.class, () -> new HiveBallTracker(1, now::get));
@@ -231,6 +284,22 @@ public class HiveBallTrackerTest {
     private void confirm(DetectorResult detection) {
         for (int i = 1; i <= 4; i++) tracker.update(frame(i, detection));
         assertNotNull(tracker.getTarget());
+    }
+
+    private static void configureFloorGeometry() {
+        HiveVisionConfig.geometryVerified = true;
+        HiveVisionConfig.cameraHeightInches = 15;
+        HiveVisionConfig.ballCenterHeightInches = 3;
+        HiveVisionConfig.cameraPitchDownDegrees = 45;
+        HiveVisionConfig.cameraYawLeftDegrees = HiveVisionConfig.cameraForwardInches = HiveVisionConfig.cameraLeftInches = 0;
+        HiveVisionConfig.maximumCameraRangeInches = 30;
+    }
+
+    /** Inverts the measured 15/3-inch, 45-degree camera for physical robot-relative inputs. */
+    private static DetectorResult floorBall(double forward, double left) {
+        double tx = Math.toDegrees(Math.atan(-left / ((forward + 12) / Math.sqrt(2))));
+        double ty = Math.toDegrees(Math.atan((forward - 12) / (forward + 12)));
+        return detection(0, tx, ty, .9);
     }
 
     private static LLResult frame(double timestamp, DetectorResult... detections) {

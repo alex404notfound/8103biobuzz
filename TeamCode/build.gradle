@@ -38,31 +38,28 @@ repositories {
     maven { url = 'https://maven.brott.dev/' }
 }
 
-// Sloth's Dashboard and Panels variants provide the original library packages.
-// Exclude the originals to keep one implementation of those classes in the APK.
+// Use Panels' Sloth wrappers and prevent Dashboard from returning transitively.
 configurations.configureEach {
     exclude group: 'com.acmerobotics.dashboard'
+    exclude group: 'com.acmerobotics.slothboard'
     exclude group: 'com.bylazar'
-    // Dashboard 0.6 owns Limelight ports 5800/5801/5805/5807. Panels' duplicate
-    // proxy binds the same ports during startup and crashes the Robot Controller.
-    exclude group: 'com.bylazar.sloth', module: 'limelightproxy'
 }
 
 dependencies {
     implementation project(':FtcRobotController')
 
     implementation 'dev.frozenmilk.sinister:Sloth:0.3.2'
-    implementation 'com.acmerobotics.slothboard:dashboard:0.3.2+0.6.0'
     implementation 'com.bylazar.sloth:fullpanels:0.3.2+1.0.13'
+    // Sloth/Panels require 2.4.10; align NextFTC's reflection runtime with it.
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:2.4.10')
     implementation 'com.pedropathing:revhub:3.0.1'
-    // AutoTune 1.0.2 throws on first tuner registration; its fix is still in beta.
-    // See docs/DEPENDENCIES.md before advancing this pin.
-    implementation 'com.pedropathing:tuning:1.0.1'
+    // 1.0.3 caches the scanner search target (fixes startup ANRs) and fixes
+    // 1.0.2's first-tuner registration crash. See docs/DEPENDENCIES.md.
+    implementation 'com.pedropathing:tuning:1.0.3'
     // NextFTC v2's suite version is 0.2.1; Ivy remains its single scheduler.
     implementation 'dev.nextftc.v2:robot:0.2.1'
     implementation 'com.pedropathing.ivy:core:1.1.1'
-    implementation 'com.pedropathing.ivy:pedro:1.1.1'
-    implementation 'org.ftclib.ftclib:core:2.1.1'
+    implementation 'com.skeletonarmyftc.marrow:core:1.2.1'
 
     testImplementation 'junit:junit:4.13.2'
     // Preserve the existing subclass mock behavior when updating Mockito 5.

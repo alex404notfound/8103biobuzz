@@ -11,14 +11,17 @@ import com.pedropathing.math.Pose;
  * and https://pedropathing.com/docs/pathing/reference/coordinates.
  */
 public class FieldConstants {
-    /** Moving CELL identities from BIOBUZZ manual 9.9 / Figure 9-17; these are not fixed poses. */
+    /** CELL identity; the driver selects the raised end when using pose-only aiming. */
     public enum HiveCell {
-        RED_FAR(Alliance.RED, 30), RED_AUDIENCE(Alliance.RED, 34),
-        BLUE_AUDIENCE(Alliance.BLUE, 38), BLUE_FAR(Alliance.BLUE, 42);
+        RED_FAR(Alliance.RED, 30, false), RED_AUDIENCE(Alliance.RED, 34, true),
+        BLUE_AUDIENCE(Alliance.BLUE, 38, true), BLUE_FAR(Alliance.BLUE, 42, false);
 
         public final Alliance alliance;
         public final int firstTagId;
-        HiveCell(Alliance alliance, int firstTagId) { this.alliance = alliance; this.firstTagId = firstTagId; }
+        public final boolean audienceSide;
+        HiveCell(Alliance alliance, int firstTagId, boolean audienceSide) {
+            this.alliance = alliance; this.firstTagId = firstTagId; this.audienceSide = audienceSide;
+        }
 
         public static HiveCell fromTagId(int id) {
             for (HiveCell cell : values()) if (id >= cell.firstTagId && id < cell.firstTagId + 4) return cell;
@@ -31,6 +34,24 @@ public class FieldConstants {
     public static final double FIELD_LENGTH_INCHES = 144.0;
     public static final double FIELD_CENTER_X_INCHES = FIELD_WIDTH_INCHES / 2;
     public static final double FIELD_CENTER_Y_INCHES = FIELD_LENGTH_INCHES / 2;
+
+    /**
+     * Nominal UP opening map, in the same Pedro frame as Pinpoint. FIRST manual TU04,
+     * Figures 9-8 through 9-11: HIVE centers 25.5 inches apart, stable tilt 30 degrees.
+     * Official STEP v26-27.2: the raised mouth's bottom edge is about 19.3 inches
+     * from the centerline. A point halfway up the 14-inch mouth projects inward
+     * by 7*sin(30)=3.5 inches, leaving a nominal 15.8-inch horizontal offset.
+     * This chosen aperture point is for azimuth, not an official ballistic aim point.
+     * https://ftc-resources.firstinspires.org/ftc/game/manual-09
+     * https://ftc-resources.firstinspires.org/ftc/field/field-cad-step
+     */
+    public static final double HIVE_CENTER_SPACING_INCHES = 25.5;
+    public static final double HIVE_STABLE_TILT_DEGREES = 30;
+    public static final double RAISED_OPENING_OFFSET_INCHES = 15.8;
+    public static final double RED_HIVE_X_INCHES = FIELD_CENTER_X_INCHES - HIVE_CENTER_SPACING_INCHES / 2;
+    public static final double BLUE_HIVE_X_INCHES = FIELD_CENTER_X_INCHES + HIVE_CENTER_SPACING_INCHES / 2;
+    public static final double AUDIENCE_CELL_UP_Y_INCHES = FIELD_CENTER_Y_INCHES - RAISED_OPENING_OFFSET_INCHES;
+    public static final double FAR_CELL_UP_Y_INCHES = FIELD_CENTER_Y_INCHES + RAISED_OPENING_OFFSET_INCHES;
 
     /** Set true only after measuring RED_CORNER_START and verifying its blue equivalent. */
     public static boolean START_POSE_CONFIGURED = false;

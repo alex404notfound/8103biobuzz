@@ -88,13 +88,18 @@ public class UtilityTestHardware extends OpMode {
             telemetry.addData("No Devices", "Found");
             return;
         }
+        // Read the shortcuts every loop so a press only applies to the current selection.
+        boolean servoMinPressed = gamepad1.aWasPressed();
+        boolean servoMaxPressed = gamepad1.bWasPressed();
         telemetry.addData("Use Dpad Left/Right", "to select device");
         if (gamepad1.dpadRightWasPressed()) {
+            stopSelectedActuator();
             numDevice++;
             if (numDevice >= deviceList.size()) {
                 numDevice = 0;
             }
         } else if (gamepad1.dpadLeftWasPressed()) {
+            stopSelectedActuator();
             numDevice--;
             if (numDevice < 0) {
                 numDevice = deviceList.size() - 1;
@@ -110,7 +115,7 @@ public class UtilityTestHardware extends OpMode {
             } else if (hardwareDevice instanceof CRServo) {
                 testCRServo((CRServo) hardwareDevice);
             } else if (hardwareDevice instanceof Servo) {
-                testServo((Servo) hardwareDevice);
+                testServo((Servo) hardwareDevice, servoMinPressed, servoMaxPressed);
             } else if (hardwareDevice instanceof ColorSensor) {
                 testColorSensor((ColorSensor) hardwareDevice);
                 // could be both, so check in here
@@ -137,6 +142,16 @@ public class UtilityTestHardware extends OpMode {
         }
     }
 
+    private void stopSelectedActuator() {
+        // Power persists between loops; stop the old device before another can be activated.
+        HardwareDevice device = deviceList.get(numDevice).hardwareDevice;
+        if (device instanceof DcMotor) {
+            ((DcMotor) device).setPower(0);
+        } else if (device instanceof CRServo) {
+            ((CRServo) device).setPower(0);
+        }
+    }
+
     void testMotor(DcMotor motor) {
         telemetry.addData("Use Left joystick Y", "to set motor power");
         telemetry.addData("Use Right Bumper", "to set motor power to value");
@@ -149,15 +164,21 @@ public class UtilityTestHardware extends OpMode {
         }
     }
 
-    void testServo(Servo servo) {
+    void testServo(Servo servo, boolean minPressed, boolean maxPressed) {
+        telemetry.addData("Use A / B", "to set servo position to 0 / 1");
         telemetry.addData("Use Left joystick Y", "to select value for servo position");
         telemetry.addData("Use Right Bumper", "to set servo position to value");
         double position = .5 + (-gamepad1.left_stick_y / 2);
         telemetry.addData("Value", position);
-        if (gamepad1.right_bumper) {
-            telemetry.addData("Servo position set to", position);
-            servo.setPosition(position);
+        if (minPressed) {
+            position = Servo.MIN_POSITION;
+        } else if (maxPressed) {
+            position = Servo.MAX_POSITION;
+        } else if (!gamepad1.right_bumper) {
+            return;
         }
+        telemetry.addData("Servo position set to", position);
+        servo.setPosition(position);
     }
 
     void testCRServo(CRServo crServo) {

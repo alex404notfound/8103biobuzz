@@ -1,246 +1,342 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.config.Config;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.qualcomm.hardware.lynx.LynxModule;
+import com.bylazar.field.Canvas;
+import com.bylazar.field.Circle;
+import com.bylazar.field.Line;
+import com.bylazar.field.Style;
+import com.bylazar.configurables.annotations.Configurable;
+import com.bylazar.telemetry.JoinedTelemetry;
+import com.pedropathing.ivy.Scheduler;
+import com.pedropathing.math.Pose;
+import com.pedropathing.math.Velocity;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
+import org.firstinspires.ftc.teamcode.math.ShotTable;
+import org.firstinspires.ftc.teamcode.hardware.BulkCacheSession;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
+import org.firstinspires.ftc.teamcode.robot.FieldConstants.HiveCell;
+import org.firstinspires.ftc.teamcode.robot.ShotTableStore;
+import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
+import org.firstinspires.ftc.teamcode.subsystems.Launcher;
+import org.firstinspires.ftc.teamcode.subsystems.Launcher.Ball;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
-/** Two motors on one linked flywheel + one positional servo, controlled from FTC Dashboard. */
-@Config
+/** Move, tune, save, then interpolate RPM from field distance using separate big/small-ball tables. */
+@Configurable
+@Disabled
 @TeleOp(name = "Shooter Tuning", group = "Prototyping")
 public class ShooterTuning extends OpMode {
-    // Hardware names and direction apply at INIT. RPM is measured at the motor shaft.
-    public static volatile String leftMotorName = "launcherLeft", rightMotorName = "launcherRight", servoName = "hood";
-    public static volatile boolean leftReversed = false, rightReversed = false;
-    public static volatile double ticksPerRevolution = 28;
-    public static volatile boolean runFlywheel = false;
-    public static volatile double targetRpm = 1000, servoPosition = 0.5;
-    // Gains produce shared motor power, using RPM and seconds.
-    public static volatile double kP = 0, kI = 0, kD = 0, kS = 0, kV = 0.0002, kA = 0;
-    public static volatile double maxPower = 1.0, maxAccelerationRpmPerSecond = 3000;
-    public static volatile double integralLimit = 1000; // RPM * seconds.
+    public static volatile Ball selectedBall = Ball.SMALL_POLLEN;
+    public static volatile HiveCell selectedCell = HiveCell.RED_AUDIENCE;
+    public static volatile boolean automaticLookup = false;
+    public static volatile double rpmStep = 50;
+    public static volatile double startX = 72, startY = 24, startHeadingDegrees = 90;
+    public static volatile double driveScale = 0.35;
+    private static final long STATIONARY_DWELL_NANOS = 300_000_000L;
 
     private final LongSupplier clock;
-    private final Supplier<Telemetry> dashboardTelemetry;
-    private DcMotorEx leftMotor, rightMotor;
-    private Servo servo;
-    private List<LynxModule> hubs = Collections.emptyList();
-    private boolean active, stopped, running, initialLeftReversed, initialRightReversed;
-    private long previousTime;
-    private double referenceRpm, previousRpm, previousTarget, integral, power;
-    private double feedback, feedforward;
-    private double pPower, iPower, dPower, requestedPower;
-    private double[] appliedGains;
-    private boolean outputLimited;
-    private String status = "OFF";
+    private final Supplier<Telemetry> panelsTelemetry;
+    private Drivetrain drive;
+    private Launcher launcher;
+    private ShotTableStore store;
+    private final BulkCacheSession bulkCache = new BulkCacheSession();
+    private Map<Ball, ShotTable> tables = ShotTableStore.empty(), undo;
+    private boolean active, stopped, releaseRequired = true, fieldPoseInitialized, tablesLoaded;
+    private Ball ball;
+    private HiveCell cell;
+    private boolean lookupMode;
+    private long stationarySince = Long.MIN_VALUE;
+    private double range = Double.NaN;
+    private ShotTable.Lookup lookup = new ShotTable().lookup(Double.NaN);
+    private String saveStatus = "No sample saved this run";
+    private String poseStatus = "INIT: enter measured start pose, then GP2 A";
+    private String runStatus = "INIT";
 
     public ShooterTuning() {
-        this(System::nanoTime, () -> FtcDashboard.getInstance().getTelemetry());
+        this(null, null, null, System::nanoTime, RobotTelemetry::browserTelemetry);
     }
 
-    ShooterTuning(LongSupplier clock, Supplier<Telemetry> dashboardTelemetry) {
-        this.clock = clock;
-        this.dashboardTelemetry = dashboardTelemetry;
+    ShooterTuning(Drivetrain drive, Launcher launcher, ShotTableStore store, LongSupplier clock,
+                  Supplier<Telemetry> panelsTelemetry) {
+        this.drive = drive; this.launcher = launcher; this.store = store;
+        this.clock = clock; this.panelsTelemetry = panelsTelemetry;
     }
 
     @Override public void init() {
-        active = stopped = false;
-        runFlywheel = false;
-        resetController();
-        telemetry = new MultipleTelemetry(telemetry, dashboardTelemetry.get());
-        telemetry.setMsTransmissionInterval(50);
+        Scheduler.reset();
+        active = stopped = fieldPoseInitialized = tablesLoaded = automaticLookup = false;
+        releaseRequired = true; undo = null; stationarySince = Long.MIN_VALUE;
+        telemetry = new JoinedTelemetry(telemetry, panelsTelemetry.get());
+        telemetry.setMsTransmissionInterval(100);
         try {
-            leftMotor = hardwareMap.get(DcMotorEx.class, leftMotorName);
-            leftMotor.setPower(0);
-            rightMotor = hardwareMap.get(DcMotorEx.class, rightMotorName);
-            rightMotor.setPower(0);
-            if (leftMotor == rightMotor) throw new IllegalArgumentException("Configure two distinct shooter motors");
-            initialLeftReversed = leftReversed;
-            initialRightReversed = rightReversed;
-            configureMotor(leftMotor, initialLeftReversed);
-            configureMotor(rightMotor, initialRightReversed);
-            servo = hardwareMap.get(Servo.class, servoName);
-            hubs = hardwareMap.getAll(LynxModule.class);
-            for (LynxModule hub : hubs) hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-        } catch (RuntimeException failure) {
-            stopAfterFailure(failure);
-            throw failure;
-        }
-    }
-
-    private static void configureMotor(DcMotorEx motor, boolean reversed) {
-        motor.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
-        motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            bulkCache.enable(hardwareMap);
+            if (drive == null) drive = new Drivetrain(hardwareMap, telemetry);
+            if (launcher == null) launcher = new Launcher(hardwareMap, telemetry);
+            if (store == null) store = new ShotTableStore(AppUtil.getInstance().getSettingsFile(ShotTableStore.FILE_NAME));
+            drive.usePreviousStartingPose();
+            drive.setFieldOverlay(this::drawCalibration);
+            selectConfiguration();
+            try {
+                tables = store.load();
+                tablesLoaded = true;
+                saveStatus = "Loaded saved tables; A saves, B undoes the last save";
+            } catch (IOException failure) {
+                tables = ShotTableStore.empty();
+                saveStatus = "LOAD FAILED - file preserved; saving/lookup disabled: " + failure.getMessage();
+            }
+        } catch (RuntimeException failure) { shutdown(failure); }
     }
 
     @Override public void init_loop() {
         if (stopped) return;
-        telemetry.addLine("Dashboard Config: ShooterTuning | launcherLeft + launcherRight + hood");
-        telemetry.addLine("START, set targetRpm, then runFlywheel=true. Zero output brakes both motors.");
-        telemetry.update();
+        try {
+            boolean calibrate = gamepad2.xWasPressed(), seed = gamepad2.aWasPressed();
+            selectConfiguration();
+            if (calibrate) {
+                fieldPoseInitialized = false;
+                poseStatus = "Calibrating: keep still, then GP2 A to reapply measured pose";
+                drive.recalibrateLocalization();
+            }
+            sampleDrive();
+            if (seed && !calibrate) {
+                Pose proposed = new Pose(startX, startY, Math.toRadians(startHeadingDegrees));
+                if (ShotTable.validPose(proposed) && drive.isLocalizationReady()) {
+                    drive.setStartingPose(proposed); fieldPoseInitialized = true;
+                    stationarySince = Long.MIN_VALUE;
+                    poseStatus = "Measured field pose applied";
+                } else {
+                    fieldPoseInitialized = false;
+                    poseStatus = "Pose refused: use finite in-field coordinates and wait for Pinpoint READY";
+                }
+            }
+            launcher.periodic();
+            updateLookup();
+            report();
+        } catch (RuntimeException failure) { shutdown(failure); }
     }
 
     @Override public void start() {
         if (stopped) return;
-        active = true;
-        runFlywheel = false; // Dashboard values survive OpMode runs; require a fresh run command.
-        resetController();
-        previousTime = clock.getAsLong();
-        zeroMotors();
+        try {
+            active = true; releaseRequired = true; automaticLookup = lookupMode = false;
+            gamepad1.resetEdgeDetection(); gamepad2.resetEdgeDetection();
+            stopOutputs();
+            launcher.enable();
+        } catch (RuntimeException failure) { shutdown(failure); }
     }
 
     @Override public void loop() {
         if (!active || stopped) return;
         try {
-            for (LynxModule hub : hubs) hub.clearBulkCache();
-            // The left encoder measures the shared flywheel; no right encoder is required.
-            double rpm = leftMotor.getVelocity() * 60 / ticksPerRevolution;
-            long now = clock.getAsLong();
-            double dt = (now - previousTime) * 1e-9;
-            previousTime = now;
-            double target = targetRpm, position = servoPosition;
-
-            if (!validSettings(target, position) || !Double.isFinite(rpm)) {
-                disarm("Invalid gains, limits, servo position or encoder reading");
-            } else if (leftReversed != initialLeftReversed || rightReversed != initialRightReversed) {
-                disarm("Direction changed: STOP and INIT to apply");
-            } else {
-                // The servo is independent of the flywheel run toggle.
-                servo.setPosition(clamp(position, 0, 1));
-                if (!runFlywheel || target == 0) {
-                    resetController();
-                    status = "OFF (BRAKE)";
-                } else if (dt <= 0 || dt > 0.25) {
-                    disarm("Loop timing gap: set runFlywheel=true to retry");
-                } else {
-                    updateController(target, rpm, dt);
-                }
+            boolean save = gamepad1.aWasPressed(), revert = gamepad1.bWasPressed();
+            if (gamepad1.dpadLeftWasPressed()) selectedBall = Ball.SMALL_POLLEN;
+            if (gamepad1.dpadRightWasPressed()) selectedBall = Ball.LARGE_NECTAR;
+            if (gamepad1.yWasPressed()) automaticLookup = !automaticLookup;
+            boolean up = gamepad1.dpadUpWasPressed(), down = gamepad1.dpadDownWasPressed();
+            selectConfiguration();
+            if (!lookupMode && Double.isFinite(rpmStep) && rpmStep > 0 && rpmStep <= 500) {
+                if (up) launcher.adjustRpm(rpmStep);
+                if (down) launcher.adjustRpm(-rpmStep);
             }
-            leftMotor.setPower(power);
-            rightMotor.setPower(power);
-            telemetry.addData("shooter.status", status);
-            telemetry.addData("shooter.targetRpm", target);
-            telemetry.addData("shooter.referenceRpm", referenceRpm);
-            telemetry.addData("shooter.measuredRpm", rpm);
-            telemetry.addData("shooter.errorRpm", referenceRpm - rpm);
-            telemetry.addData("shooter.feedforwardPower", feedforward);
-            telemetry.addData("shooter.feedbackPower", feedback);
-            telemetry.addData("shooter.pPower", pPower);
-            telemetry.addData("shooter.iPower", iPower);
-            telemetry.addData("shooter.dPower", dPower);
-            telemetry.addData("shooter.requestedPower", requestedPower);
-            telemetry.addData("shooter.outputLimited", outputLimited);
-            telemetry.addData("shooter.leftPower", power);
-            telemetry.addData("shooter.rightPower", power);
-            telemetry.addData("shooter.servoPosition", servo.getPosition());
-            telemetry.addLine("Dashboard: ShooterTuning | runFlywheel=false stops both motors | feedback: left encoder");
-            telemetry.update();
-        } catch (RuntimeException failure) {
-            stopAfterFailure(failure);
-            throw failure;
+            // These controls only reset odometry during INIT.
+            gamepad2.aWasPressed(); gamepad2.xWasPressed();
+            if (gamepad1.x) releaseRequired = true;
+            if (releaseRequired || (!spinHeld() && !gamepad1.left_bumper)) launcher.idle();
+            if (releaseRequired || !gamepad2.left_bumper) drive.stop();
+
+            sampleDrive();
+            updateLookup();
+            if (releaseRequired) {
+                stopOutputs();
+                runStatus = "Release RT, both LBs and X to arm";
+                if (controlsReleased()) releaseRequired = false;
+            } else if (ball == null || cell == null) {
+                stopOutputs(); runStatus = "Select a ball and CELL";
+            } else {
+                // A deliberate low-voltage check only powers the selected motor.
+                if (gamepad1.left_bumper && !spinHeld()) {
+                    launcher.requestMotorTest();
+                    runStatus = "Selected motor direction check";
+                } else if (spinHeld() && !gamepad1.left_bumper) {
+                    double rpm = lookupMode ? lookup.rpm : launcher.getManualRpm();
+                    if (!lookupMode || (tablesLoaded && fieldUsable() && lookup.usable)) {
+                        launcher.requestRpm(rpm);
+                        runStatus = lookupMode ? "Automatic distance RPM" : "Manual RPM";
+                    } else {
+                        launcher.idle(); runStatus = !fieldUsable() ? "Field pose unavailable" : lookup.status;
+                    }
+                } else {
+                    launcher.idle(); runStatus = "Motor stopped";
+                }
+                if (gamepad2.left_bumper && fieldUsable() && Double.isFinite(driveScale)
+                        && driveScale > 0 && driveScale <= 0.5) {
+                    double forward = -gamepad2.left_stick_y, left = -gamepad2.left_stick_x;
+                    double turn = -gamepad2.right_stick_x;
+                    // Cap the combined mecanum wheel demand, including diagonal movement plus turning.
+                    double scale = driveScale / Math.max(1, Math.abs(forward) + Math.abs(left) + Math.abs(turn));
+                    drive.driveRobotRelative(forward * scale, left * scale, turn * scale);
+                } else drive.stop();
+            }
+            launcher.periodic();
+            // Save only the target that has actually settled on this cycle, never a spin-up reading.
+            if (save) savePoint();
+            else if (revert) undoSave();
+            report();
+        } catch (RuntimeException failure) { shutdown(failure); }
+    }
+
+    private void selectConfiguration() {
+        Ball nextBall = selectedBall;
+        HiveCell nextCell = selectedCell;
+        boolean nextLookup = automaticLookup;
+        if (ball != nextBall || cell != nextCell || lookupMode != nextLookup) {
+            stopOutputs();
+            releaseRequired = true;
+            stationarySince = Long.MIN_VALUE;
+        }
+        ball = nextBall; cell = nextCell; lookupMode = nextLookup;
+        if (ball != null) launcher.selectBall(ball);
+    }
+
+    private void sampleDrive() {
+        bulkCache.clear();
+        drive.periodic();
+        if (fieldPoseInitialized && !drive.isLocalizationReady()) {
+            fieldPoseInitialized = false; releaseRequired = true;
+            poseStatus = "Localization interrupted: STOP/INIT and reapply measured field pose";
+            stopOutputs();
+        }
+        Velocity velocity = drive.getVelocity();
+        boolean still = fieldUsable() && velocity != null && Double.isFinite(velocity.vx)
+                && Double.isFinite(velocity.vy) && Double.isFinite(velocity.omega)
+                && Math.hypot(velocity.vx, velocity.vy) <= 1 && Math.abs(velocity.omega) <= Math.toRadians(5);
+        if (!still) stationarySince = Long.MIN_VALUE;
+        else if (stationarySince == Long.MIN_VALUE) stationarySince = clock.getAsLong();
+    }
+
+    private boolean fieldUsable() {
+        return fieldPoseInitialized && drive.isLocalizationReady() && ShotTable.validPose(drive.getPose()) && cell != null;
+    }
+    private boolean stationary() {
+        return stationarySince != Long.MIN_VALUE && clock.getAsLong() - stationarySince >= STATIONARY_DWELL_NANOS;
+    }
+    private boolean spinHeld() { return gamepad1.right_trigger > 0.25; }
+    private boolean controlsReleased() {
+        return !spinHeld() && !gamepad1.left_bumper && !gamepad2.left_bumper && !gamepad1.x;
+    }
+    private ShotTable table() { return ball == null ? new ShotTable() : tables.get(ball); }
+
+    private void updateLookup() {
+        range = fieldUsable() ? ShotTable.range(drive.getPose(), cell) : Double.NaN;
+        lookup = table().lookup(range);
+    }
+
+    private void savePoint() {
+        if (!tablesLoaded) { saveStatus = "Save disabled: resolve calibration load failure first"; return; }
+        if (lookupMode) { saveStatus = "Switch to MANUAL before saving a measured RPM"; return; }
+        if (releaseRequired || ball == null || !fieldUsable() || !stationary() || gamepad2.left_bumper) {
+            saveStatus = "Save refused: stop driving, hold still 0.3 s, and use a healthy measured field pose"; return;
+        }
+        if (!spinHeld() || gamepad1.left_bumper || !launcher.isAtSpeed()
+                || launcher.getTargetRpm() != launcher.getManualRpm()) {
+            saveStatus = "Save refused: hold RT until the selected shooter is at the tuned RPM"; return;
+        }
+        ShotTable.Point point;
+        Map<Ball, ShotTable> next = new EnumMap<>(tables);
+        try {
+            point = new ShotTable.Point(drive.getPose(), cell, launcher.getTargetRpm());
+            next.put(ball, table().with(point));
+        }
+        catch (IllegalArgumentException invalid) { saveStatus = invalid.getMessage(); return; }
+        // File sync can block. Stop all motors before touching storage and require a fresh hold afterward.
+        stopOutputs(); releaseRequired = true;
+        try {
+            store.save(next);
+            undo = tables; tables = next;
+            saveStatus = String.format(Locale.US, "SAVED %s: %.1f in -> %.0f RPM (%d points). Release RT to continue.",
+                    ball, point.distance, point.rpm, table().points().size());
+            updateLookup();
+        } catch (IOException failure) {
+            saveStatus = "SAVE FAILED - current table unchanged: " + failure.getMessage();
         }
     }
 
-    private void updateController(double target, double rpm, double dt) {
-        if (!running) {
-            referenceRpm = Math.max(0, rpm);
-            previousRpm = rpm;
-            running = true;
-        }
-        double p = kP, i = kI, d = kD, s = kS, v = kV, a = kA, integralCap = integralLimit;
-        double[] gains = {p, i, d, s, v, a, integralCap};
-        // Old integral correction belongs to the old gains, not a fresh tuning experiment.
-        if (target != previousTarget || !Arrays.equals(appliedGains, gains)) integral = 0;
-        appliedGains = gains;
-        previousTarget = target;
-
-        double oldReference = referenceRpm;
-        double maxChange = maxAccelerationRpmPerSecond * dt;
-        // Ramp up, but apply lower targets immediately so slowing down is not rate-limited.
-        referenceRpm = Math.min(target, referenceRpm + maxChange);
-        double acceleration = (referenceRpm - oldReference) / dt;
-        double error = referenceRpm - rpm;
-        double measuredAcceleration = (rpm - previousRpm) / dt;
-        previousRpm = rpm;
-        double limit = maxPower;
-        double candidateIntegral = i == 0 ? 0 : clamp(integral + error * dt, -integralCap, integralCap);
-        feedforward = (referenceRpm > 0 ? s : 0) + v * referenceRpm + a * acceleration;
-        pPower = p * error;
-        dPower = -d * measuredAcceleration; // Derivative on measurement avoids target-step kick.
-        double base = feedforward + pPower + dPower;
-        double requested = base + i * candidateIntegral;
-        // Do not accumulate error when it would push a saturated output further into its limit.
-        if (!((requested > limit && error > 0) || (requested < 0 && error < 0))) {
-            integral = candidateIntegral;
-        }
-        iPower = i * integral;
-        feedback = pPower + iPower + dPower;
-        requestedPower = feedforward + feedback;
-        if (!Double.isFinite(requestedPower)) {
-            disarm("Nonfinite controller output");
-            return;
-        }
-        outputLimited = requestedPower < 0 || requestedPower > limit;
-        power = clamp(requestedPower, 0, limit); // Zero engages BRAKE; never command reverse.
-        status = "RUNNING RPM";
+    private void undoSave() {
+        if (!tablesLoaded || undo == null) { saveStatus = "No save from this run to undo"; return; }
+        if (!controlsReleased()) { saveStatus = "Release shooter/drive controls before undo"; return; }
+        stopOutputs(); releaseRequired = true;
+        try {
+            store.save(undo);
+            tables = undo; undo = null; updateLookup();
+            saveStatus = "Last save undone on the Control Hub";
+        } catch (IOException failure) { saveStatus = "UNDO FAILED - current table unchanged: " + failure.getMessage(); }
     }
 
-    private static boolean validSettings(double target, double position) {
-        if (!Double.isFinite(position) || ticksPerRevolution <= 0 || maxAccelerationRpmPerSecond <= 0
-                || maxPower > 1 || target > 6000) return false;
-        for (double value : new double[]{target, ticksPerRevolution, kP, kI, kD, kS, kV, kA,
-                maxPower, maxAccelerationRpmPerSecond, integralLimit}) {
-            if (!Double.isFinite(value) || value < 0) return false;
+    private void drawCalibration(Canvas canvas) {
+        if (cell == null || ball == null) return;
+        Style targetStyle = new Style("transparent", "#fbbf24", .2);
+        Style savedShotStyle = new Style("#fbbf24", "transparent", 0);
+        double x = ShotTable.targetX(cell), y = ShotTable.targetY(cell);
+        canvas.getItems().add(new Circle(x, y, 4, targetStyle));
+        canvas.getItems().add(new Line(x - 5, y, x + 5, y, targetStyle));
+        canvas.getItems().add(new Line(x, y - 5, x, y + 5, targetStyle));
+        if (fieldUsable()) canvas.getItems().add(new Line(drive.getPose().x(), drive.getPose().y(), x, y, targetStyle));
+        for (ShotTable.Point point : table().points()) {
+            if (point.cell == cell) canvas.getItems().add(new Circle(point.x, point.y, 1.5, savedShotStyle));
         }
-        return true;
     }
 
-    private void resetController() {
-        running = false;
-        referenceRpm = previousRpm = previousTarget = integral = power = feedback = feedforward = 0;
-        pPower = iPower = dPower = requestedPower = 0;
-        appliedGains = null;
-        outputLimited = false;
+    private void report() {
+        telemetry.addData("Calibration ball / mode / CELL", ball + " / " + (lookupMode ? "LOOKUP" : "MANUAL") + " / " + cell);
+        telemetry.addData("Calibration storage", saveStatus);
+        telemetry.addData("Field reference", poseStatus);
+        telemetry.addData("shooter.rangeInches", range);
+        telemetry.addData("shooter.lookupRpm", lookup.rpm);
+        telemetry.addData("shooter.lowerDistance", lookup.lowerDistance);
+        telemetry.addData("shooter.upperDistance", lookup.upperDistance);
+        telemetry.addData("shooter.interpolationFraction", lookup.fraction);
+        telemetry.addData("Lookup status", tablesLoaded ? lookup.status : "Calibration file unavailable");
+        telemetry.addData("Run status", runStatus);
+        telemetry.addData("Manual target RPM", launcher.getManualRpm());
+        telemetry.addData("Stationary / RPM settled", stationary() + " / " + launcher.isAtSpeed());
+        StringBuilder points = new StringBuilder();
+        for (ShotTable.Point point : table().points())
+            points.append(String.format(Locale.US, "%.1f in: %.0f RPM | ", point.distance, point.rpm));
+        telemetry.addData("Saved distances (selected ball)", points.length() == 0 ? "None" : points.toString());
+        telemetry.addLine("GP1 left/right: small/big | up/down: RPM | RT: run selected | LB: direction test");
+        telemetry.addLine("GP1 A: save settled manual point | B: undo last save | Y: manual/lookup | X: cancel");
+        telemetry.addLine("GP2 LB + sticks: slow robot-relative drive | INIT GP2 A: measured start | X: calibrate");
+        telemetry.addLine("Panels Launcher: separate big/small gains and manual RPM. Aim/feed manually.");
+        telemetry.update();
     }
 
-    private void disarm(String reason) {
-        runFlywheel = false;
-        resetController();
-        status = reason;
+    private void stopOutputs() {
+        try { if (drive != null) drive.stop(); }
+        finally { if (launcher != null) launcher.idle(); }
     }
-
-    private void stopAfterFailure(RuntimeException failure) {
+    private void shutdown(RuntimeException failure) {
         try { stop(); } catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
+        throw failure;
     }
-
     @Override public void stop() {
         if (stopped) return;
-        stopped = true;
-        active = runFlywheel = false;
-        resetController();
-        zeroMotors();
-    }
-
-    private void zeroMotors() {
-        try { if (leftMotor != null) leftMotor.setPower(0); }
-        finally { if (rightMotor != null) rightMotor.setPower(0); }
-    }
-
-    private static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
+        stopped = true; active = false; automaticLookup = false;
+        try { if (drive != null) { drive.setFieldOverlay(null); drive.stop(); } }
+        finally {
+            try { if (launcher != null) launcher.stop(); }
+            finally {
+                try { bulkCache.close(); }
+                finally { Scheduler.reset(); }
+            }
+        }
     }
 }

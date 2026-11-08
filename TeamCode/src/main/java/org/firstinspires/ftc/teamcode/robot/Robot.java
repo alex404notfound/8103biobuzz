@@ -1,17 +1,15 @@
 package org.firstinspires.ftc.teamcode.robot;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import dev.nextftc.robot.Mechanism;
 import dev.nextftc.robot.NextRobot;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.hardware.BulkCacheSession;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 import org.firstinspires.ftc.teamcode.subsystems.*;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Set;
 
 /** NextFTC discovers this container once; hardware is acquired afresh at each INIT. */
@@ -24,7 +22,7 @@ public class Robot implements NextRobot {
     public ExampleSubsystem exampleSubsystem;
     public Limelight limelight;
     public HardwareProfile profile;
-    private List<LynxModule> hubs = Collections.emptyList();
+    private final BulkCacheSession bulkCache = new BulkCacheSession();
     private Set<Mechanism> mechanisms = Collections.emptySet();
     private boolean stopped = true;
     private Runnable afterMechanisms = () -> { };
@@ -34,11 +32,7 @@ public class Robot implements NextRobot {
 
     public void initialize(HardwareMap hardwareMap, Telemetry driverTelemetry, HardwareProfile profile) {
         stop();
-        Telemetry dashboard = FtcDashboard.getInstance().getTelemetry();
-        // NextFTC flushes both backends at the end of the loop. addBackend deduplicates
-        // the Dashboard singleton; do not register a new MultipleTelemetry each INIT.
-        dev.nextftc.robot.Telemetry.addBackend(dashboard);
-        beginInitialization(hardwareMap, new MultipleTelemetry(driverTelemetry, dashboard), profile);
+        beginInitialization(hardwareMap, RobotTelemetry.forNextFTC(driverTelemetry), profile);
         drivetrain = new Drivetrain(hardwareMap, telemetry);
         initializeOptionalMechanisms();
     }
@@ -64,8 +58,7 @@ public class Robot implements NextRobot {
         mechanisms = Collections.emptySet();
         afterMechanisms = () -> { };
         stopped = false;
-        hubs = hardwareMap.getAll(LynxModule.class);
-        for (LynxModule hub : hubs) hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
+        bulkCache.enable(hardwareMap);
     }
 
     private void initializeOptionalMechanisms() {
@@ -96,7 +89,7 @@ public class Robot implements NextRobot {
 
     /** Invalidate sensors before both INIT and active loops. */
     public void clearBulkCache() {
-        for (LynxModule hub : hubs) hub.clearBulkCache();
+        bulkCache.clear();
     }
 
     /** Add loop metrics; NextFTC's telemetry hook owns the flush. */
@@ -116,7 +109,8 @@ public class Robot implements NextRobot {
             try {
                 if (exampleSubsystem != null) exampleSubsystem.stop();
             } finally {
-                if (limelight != null) limelight.stop();
+                try { if (limelight != null) limelight.stop(); }
+                finally { bulkCache.close(); }
             }
         }
     }

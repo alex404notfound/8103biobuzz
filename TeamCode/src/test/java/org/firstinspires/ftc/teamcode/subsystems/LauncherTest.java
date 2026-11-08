@@ -1,163 +1,133 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
+import org.mockito.InOrder;
 import java.util.concurrent.atomic.AtomicLong;
-
 import static org.junit.Assert.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/** Launcher facade tests; encoder, voltage, PID and coupled-motor behavior live in ShooterFlywheelTest. */
 public class LauncherTest {
-    private final ShooterFlywheel flywheel = mock(ShooterFlywheel.class);
-    private final Servo hood = mock(Servo.class);
-    private final AtomicLong now = new AtomicLong();
+    private final ShooterFlywheel big = mock(ShooterFlywheel.class), small = mock(ShooterFlywheel.class);
+    private final Telemetry telemetry = mock(Telemetry.class);
     private Launcher launcher;
 
     @Before public void setUp() {
         defaults();
-        when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.OFF);
-        when(flywheel.hasFreshSample()).thenReturn(true);
-        launcher = new Launcher(flywheel, hood, mock(Telemetry.class), now::get);
+        launcher = new Launcher(big, small, telemetry);
     }
-
     @After public void tearDown() { defaults(); }
-
     private static void defaults() {
         Launcher.smallBallRpm = Launcher.largeBallRpm = 1000;
-        Launcher.hoodMin = Launcher.hoodMax = Launcher.smallBallHood = Launcher.largeBallHood = Launcher.calibrationHood = -1;
-        Launcher.hoodSettleMs = 300;
+        Launcher.big = new ShooterFlywheel.Settings("launcherLeft");
+        Launcher.small = new ShooterFlywheel.Settings("launcherRight");
     }
 
-    @Test public void initReadsSensorsWithoutEnablingMotionOrWritingHood() {
-        calibratedHood();
-        launcher.requestVelocity();
-        launcher.requestMotorTest(true);
-        assertFalse(launcher.applyPresetHood());
-        launcher.periodic();
-        verify(flywheel).periodic();
-        verify(flywheel, never()).enable();
-        verify(flywheel, never()).requestRpm(anyDouble());
-        verify(flywheel, never()).requestMotorTest(anyBoolean());
-        verifyNoInteractions(hood);
+    @Test public void initReadsBothSensorsWithoutEnablingEitherMotor() {
+        launcher.requestRpm(1000); launcher.requestMotorTest(); launcher.periodic();
+        verify(big).periodic(); verify(small).periodic();
+        verify(big, never()).enable(); verify(small, never()).enable();
+        verify(big, never()).requestRpm(anyDouble()); verify(small, never()).requestRpm(anyDouble());
+        verify(big, never()).requestMotorTest(); verify(small, never()).requestMotorTest();
     }
 
-    @Test public void motorRequestsDelegateToTheSameControllerUsedForTuning() {
+    @Test public void selectionStopsBothBeforeRoutingToTheOtherMotor() {
         launcher.enable();
-        verify(flywheel).enable();
-        launcher.requestMotorTest(true);
-        launcher.requestMotorTest(false);
-        verify(flywheel).requestMotorTest(true);
-        verify(flywheel).requestMotorTest(false);
-        launcher.requestVelocity();
-        verify(flywheel).requestRpm(1000);
-        launcher.idle();
-        verify(flywheel).idle();
-        when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.FAULT);
-        when(flywheel.getStatus()).thenReturn("No feedback encoder response");
-        assertEquals(Launcher.Mode.FAULT, launcher.getMode());
-        assertEquals("No feedback encoder response", launcher.getStatus());
-    }
-
-    @Test public void runningPresetEditsRefreshTargetAndImmediatelyInvalidateOldReady() {
-        launcher.enable();
-        when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.VELOCITY);
-        when(flywheel.getTargetRpm()).thenReturn(1000.0);
-        when(flywheel.isAtSpeed()).thenReturn(true);
-        assertTrue(launcher.isAtSpeed());
-        Launcher.smallBallRpm = 2500;
-        assertFalse(launcher.isAtSpeed());
-        launcher.periodic();
-        verify(flywheel).requestRpm(2500);
-        when(flywheel.getTargetRpm()).thenReturn(2500.0);
-        assertTrue(launcher.isAtSpeed());
-        when(flywheel.isAtSpeed()).thenReturn(false);
-        assertFalse(launcher.isAtSpeed());
-    }
-
-    @Test public void readyRequiresFlywheelReadyCorrectHoodAndSettlingTime() {
-        calibratedHood();
-        launcher.enable();
-        assertTrue(launcher.applyPresetHood());
-        when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.VELOCITY);
-        when(flywheel.getTargetRpm()).thenReturn(1000.0);
-        when(flywheel.isAtSpeed()).thenReturn(true);
-        assertFalse(launcher.isReady());
-        now.set(300_000_000L);
-        assertTrue(launcher.isReady());
-        Launcher.smallBallHood = 0.5;
-        assertFalse(launcher.isReady());
-        Launcher.smallBallHood = 0.4;
-        Launcher.hoodSettleMs = Double.NaN;
-        assertFalse(launcher.isReady());
-    }
-
-    @Test public void selectingAnotherBallStopsFlywheelAndRequiresItsHoodPreset() {
-        calibratedHood();
-        Launcher.largeBallRpm = 2000;
-        launcher.enable();
-        assertTrue(launcher.applyPresetHood());
+        launcher.requestRpm(1500);
         launcher.selectBall(Launcher.Ball.LARGE_NECTAR);
-        verify(flywheel).idle();
-        assertEquals(2000, launcher.getTargetRpm(), 0);
-        assertEquals(0.4, launcher.getCommandedHood(), 0);
-        assertFalse(launcher.isReady());
-        assertTrue(launcher.applyPresetHood());
-        verify(hood).setPosition(0.6);
-        launcher.requestVelocity();
-        verify(flywheel).requestRpm(2000);
+        launcher.requestRpm(2500); launcher.requestMotorTest();
+        InOrder order = inOrder(big, small);
+        order.verify(small).requestRpm(1500);
+        order.verify(big).idle(); order.verify(small).idle();
+        order.verify(big).requestRpm(2500); order.verify(big).requestMotorTest();
+        verify(big, never()).requestRpm(1500); verify(small, never()).requestRpm(2500);
+        verify(small, never()).requestMotorTest();
+    }
+
+    @Test public void presetsAndRpmAdjustmentsRemainIndependentAndBounded() {
+        launcher.adjustRpm(200);
+        assertEquals(1200, Launcher.smallBallRpm, 0);
+        launcher.selectBall(Launcher.Ball.LARGE_NECTAR);
+        assertEquals(1000, launcher.getManualRpm(), 0);
         launcher.adjustRpm(10000);
-        assertEquals(6000, launcher.getTargetRpm(), 0);
+        assertEquals(6000, Launcher.largeBallRpm, 0);
         launcher.adjustRpm(-10000);
-        assertEquals(0, launcher.getTargetRpm(), 0);
+        assertEquals(0, Launcher.largeBallRpm, 0);
+        launcher.adjustRpm(Double.NaN);
+        assertEquals(0, Launcher.largeBallRpm, 0);
+        assertEquals(1200, Launcher.smallBallRpm, 0);
     }
 
-    @Test public void hoodRejectsUnmeasuredOutOfRangeMovingStaleAndNonfiniteStates() {
-        launcher.enable();
-        assertFalse(launcher.applyPresetHood());
-        calibratedHood();
-        assertFalse(launcher.positionHood(0.9));
-        assertFalse(launcher.positionHood(Double.NaN));
-        when(flywheel.getMeasuredRpm()).thenReturn(151.0);
-        assertFalse(launcher.applyPresetHood());
-        when(flywheel.getMeasuredRpm()).thenReturn(Double.NaN);
-        assertFalse(launcher.applyPresetHood());
-        when(flywheel.getMeasuredRpm()).thenReturn(0.0);
-        when(flywheel.hasFreshSample()).thenReturn(false);
-        assertFalse(launcher.applyPresetHood());
-        when(flywheel.hasFreshSample()).thenReturn(true);
-        when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.VOLTAGE);
-        assertFalse(launcher.applyPresetHood());
-        verifyNoInteractions(hood);
-        when(flywheel.getMode()).thenReturn(ShooterFlywheel.Mode.OFF);
-        assertTrue(launcher.applyPresetHood());
-        assertTrue(launcher.jogHood(1));
-        verify(hood).setPosition(0.4);
-        verify(hood).setPosition(0.7);
-    }
-
-    @Test public void stopIsTerminalEvenIfMotorCleanupThrowsAndNeverRepositionsHood() {
-        launcher.enable();
-        doThrow(new IllegalStateException("disconnected")).when(flywheel).stop();
-        assertThrows(IllegalStateException.class, launcher::stop);
-        clearInvocations(flywheel);
-        launcher.enable();
-        launcher.requestVelocity();
-        launcher.requestMotorTest(true);
+    @Test public void readinessAndTelemetryReferToEachShootersOwnFeedback() {
+        when(big.isAtSpeed()).thenReturn(true); when(small.isAtSpeed()).thenReturn(false);
+        when(big.getMeasuredRpm()).thenReturn(2500.0);
+        when(small.getMeasuredRpm()).thenReturn(1200.0);
+        assertFalse(launcher.isAtSpeed());
+        launcher.enable(); assertFalse(launcher.isAtSpeed());
+        launcher.selectBall(Launcher.Ball.LARGE_NECTAR); assertTrue(launcher.isAtSpeed());
+        assertEquals(2500, launcher.getMeasuredRpm(), 0);
         launcher.periodic();
-        launcher.idle();
-        assertFalse(launcher.applyPresetHood());
-        assertEquals(Launcher.Mode.OFF, launcher.getMode());
-        verifyNoInteractions(flywheel, hood);
+        verify(telemetry).addData("shooter.big.measuredRpm", 2500.0);
+        verify(telemetry).addData("shooter.small.measuredRpm", 1200.0);
     }
 
-    private void calibratedHood() {
-        Launcher.hoodMin = 0.3; Launcher.hoodMax = 0.7;
-        Launcher.smallBallHood = 0.4; Launcher.largeBallHood = 0.6;
+    @Test public void stopAndIdleAttemptBothMotorsWhenOneThrows() {
+        launcher.enable();
+        doThrow(new IllegalStateException("disconnected")).when(big).idle();
+        assertThrows(IllegalStateException.class, launcher::idle);
+        verify(small).idle();
+        doThrow(new IllegalStateException("disconnected")).when(big).stop();
+        assertThrows(IllegalStateException.class, launcher::stop);
+        verify(small).stop();
+        clearInvocations(big, small);
+        launcher.enable(); launcher.requestRpm(1000); launcher.requestMotorTest();
+        launcher.periodic(); launcher.idle(); launcher.stop();
+        assertFalse(launcher.isAtSpeed());
+        verifyNoInteractions(big, small);
+    }
+
+    @Test public void sensorExceptionShutsDownBothControllers() {
+        launcher.enable();
+        doThrow(new IllegalStateException("encoder disconnected")).when(small).periodic();
+        assertThrows(IllegalStateException.class, launcher::periodic);
+        verify(big).stop(); verify(small).stop();
+    }
+
+    @Test public void hardwareMappingRequiresTwoDistinctMotorsAndNoAdditionalMechanism() {
+        HardwareMap map = mock(HardwareMap.class);
+        DcMotorEx bigMotor = mock(DcMotorEx.class), smallMotor = mock(DcMotorEx.class);
+        when(map.get(DcMotorEx.class, "launcherLeft")).thenReturn(bigMotor);
+        when(map.get(DcMotorEx.class, "launcherRight")).thenReturn(smallMotor);
+        new Launcher(map, telemetry).stop();
+        verify(map).get(DcMotorEx.class, "launcherLeft");
+        verify(map).get(DcMotorEx.class, "launcherRight");
+        verifyNoMoreInteractions(map);
+        when(map.get(DcMotorEx.class, "launcherRight")).thenReturn(bigMotor);
+        assertThrows(IllegalArgumentException.class, () -> new Launcher(map, telemetry));
+    }
+
+    @Test public void realControllersUseSeparateEncodersGainsAndMotorOutputs() {
+        DcMotorEx bigMotor = mock(DcMotorEx.class), smallMotor = mock(DcMotorEx.class);
+        AtomicLong now = new AtomicLong();
+        Launcher.big.directionVerified = Launcher.small.directionVerified = true;
+        Launcher.big.kV = .001; Launcher.small.kV = .002;
+        when(bigMotor.getVelocity()).thenReturn(2000.0 * 28 / 60);
+        when(smallMotor.getVelocity()).thenReturn(1000.0 * 28 / 60);
+        Launcher real = new Launcher(
+                new ShooterFlywheel(bigMotor, Launcher.big, () -> 12, now::get),
+                new ShooterFlywheel(smallMotor, Launcher.small, () -> 12, now::get), telemetry);
+        real.enable(); real.requestRpm(1000); real.periodic();
+        verify(smallMotor).setPower(2.0 / 12);
+        verify(bigMotor, never()).setPower(doubleThat(p -> p > 0));
+        real.selectBall(Launcher.Ball.LARGE_NECTAR);
+        clearInvocations(bigMotor, smallMotor);
+        real.requestRpm(2000); now.set(20_000_000L); real.periodic();
+        verify(bigMotor).setPower(2.0 / 12);
+        verify(smallMotor, never()).setPower(doubleThat(p -> p > 0));
+        assertEquals(2000, real.getMeasuredRpm(), 1e-9);
     }
 }

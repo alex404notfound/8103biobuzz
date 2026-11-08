@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -17,7 +17,7 @@ import org.json.JSONObject;
 import java.util.function.LongSupplier;
 
 /** Nonblocking camera polling and calibrated, operator-requested stationary pose correction. */
-@Config
+@Configurable
 public class Limelight implements Mechanism {
     /** Read at INIT. Configure this AprilTag pipeline and camera extrinsics in the camera UI. */
     public static int pipelineIndex = 0;
@@ -74,17 +74,19 @@ public class Limelight implements Mechanism {
         requestedPipeline = pipeline;
         orientationPublisher = publisher;
         results = new VisionResultGate(pipeline, clock);
-        camera.setPollRateHz(100);
-        camera.start();
+        try {
+            camera.setPollRateHz(100);
+            camera.start();
+        } catch (RuntimeException failure) {
+            // The constructor has not returned, so Robot cannot yet own this worker/camera.
+            try { stop(); }
+            catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
+            throw failure;
+        }
     }
 
     public LLResult getFreshResult() {
         return orientationPublisher.isReady() ? results.getFresh(maxStalenessMs) : null;
-    }
-
-    /** Read immediately after getFreshResult on the same loop; never mix SDK epoch time with nanoTime. */
-    public double getFreshResultAgeMs() {
-        return getFreshResult() == null ? Double.NaN : results.getAgeMs();
     }
 
     public String getLastCorrection() { return lastCorrection; }
@@ -116,7 +118,7 @@ public class Limelight implements Mechanism {
 
         Pose current = drivetrain.getPose();
         Velocity velocity = drivetrain.getVelocity();
-        if (!finite(current) || !Constants.isFiniteVelocity(velocity)) {
+        if (!Constants.isFinitePose(current) || !Constants.isFiniteVelocity(velocity)) {
             stationarySampleSeen = false;
             lastCorrection = "Invalid odometry sample";
             return;
@@ -162,11 +164,6 @@ public class Limelight implements Mechanism {
         return new VisionFrame(frameOriginXInches, frameOriginYInches, frameRotationDegrees);
     }
 
-    private static boolean finite(Pose pose) {
-        return pose != null && Double.isFinite(pose.x()) && Double.isFinite(pose.y())
-                && Double.isFinite(pose.heading());
-    }
-
     private static boolean validLimits() {
         for (double value : new double[]{maxCorrectionInches, maxStationarySpeed,
                 maxStationaryTurnDegreesPerSecond, maxRobotHeightMeters, maxRobotTiltDegrees}) {
@@ -178,7 +175,7 @@ public class Limelight implements Mechanism {
     private void observeStationarity() {
         Pose pose = drivetrain.getPose();
         Velocity velocity = drivetrain.getVelocity();
-        if (!drivetrain.isLocalizationReady() || !finite(pose) || !Constants.isFiniteVelocity(velocity)
+        if (!drivetrain.isLocalizationReady() || !Constants.isFinitePose(pose) || !Constants.isFiniteVelocity(velocity)
                 || !validLimits() || !Double.isFinite(maxStalenessMs) || maxStalenessMs <= 0
                 || Math.hypot(velocity.vx, velocity.vy) > maxStationarySpeed
                 || Math.abs(Math.toDegrees(velocity.omega)) > maxStationaryTurnDegreesPerSecond) {
@@ -233,8 +230,10 @@ public class Limelight implements Mechanism {
 
     public void stop() {
         stationarySampleSeen = false;
-        orientationPublisher.close();
-        results.clear();
-        camera.stop();
+        try { orientationPublisher.close(); }
+        finally {
+            results.clear();
+            camera.stop();
+        }
     }
 }

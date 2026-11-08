@@ -10,6 +10,18 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 public class RobotHardwareProfileTest {
+    @Test public void motorCleanupFailureStillRestoresTheHubsOriginalCachingMode() {
+        com.qualcomm.hardware.lynx.LynxModule hub = mock(com.qualcomm.hardware.lynx.LynxModule.class);
+        when(hub.getBulkCachingMode()).thenReturn(com.qualcomm.hardware.lynx.LynxModule.BulkCachingMode.AUTO);
+        HardwareMap map = mock(HardwareMap.class);
+        when(map.getAll(com.qualcomm.hardware.lynx.LynxModule.class)).thenReturn(java.util.Collections.singletonList(hub));
+        Drivetrain drive = mock(Drivetrain.class);
+        Robot robot = new Robot(map, mock(Telemetry.class), Robot.HardwareProfile.DRIVE_ONLY, drive);
+        doThrow(new IllegalStateException("Motor shutdown failed")).when(drive).stop();
+        assertThrows(IllegalStateException.class, robot::stop);
+        verify(hub).setBulkCachingMode(com.qualcomm.hardware.lynx.LynxModule.BulkCachingMode.AUTO);
+    }
+
     @Test public void driveOnlyDoesNotRequireCameraOrExampleMotor() {
         HardwareMap hardwareMap = mock(HardwareMap.class);
         Robot robot = new Robot(hardwareMap, mock(Telemetry.class), Robot.HardwareProfile.DRIVE_ONLY, mock(Drivetrain.class));

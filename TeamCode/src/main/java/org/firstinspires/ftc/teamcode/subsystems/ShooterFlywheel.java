@@ -1,38 +1,67 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
-
 import java.util.Arrays;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 
-/** Two equally geared motors driving ONE mechanically linked flywheel.
- * Both receive the same logical voltage; the LEFT motor encoder measures shared speed.
- * Software PID + feedforward exclusively owns power (no second Hub velocity loop).
- */
-@Config
+/** One independently controlled flywheel motor with its own encoder and voltage-based PID/feedforward. */
 public class ShooterFlywheel {
-    public static volatile String leftMotorName = "launcherLeft", rightMotorName = "launcherRight";
-    public static volatile boolean leftReversed = false, rightReversed = false, directionsVerified = false;
-    public static final double TICKS_PER_REVOLUTION = 28, MAX_MOTOR_RPM = 6000;
-    // Volts, motor-shaft RPM and seconds. kV is an initial 12 V / 6000 RPM estimate only.
-    public static volatile double kP = 0.002, kI = 0, kD = 0, kS = 0, kV = 12.0 / 6000, kA = 0;
-    public static volatile double maxVoltage = 3, testVoltage = 1, maxAccelerationRpmPerSecond = 1000;
-    public static volatile double integralLimitRpmSeconds = 5000;
-    public static volatile double rpmTolerance = 150, speedDwellMs = 250, spinupTimeoutMs = 4000;
-    public static volatile double encoderResponseTimeoutMs = 1000, minimumEncoderRpm = 50;
-    public static volatile double maximumSampleGapMs = 250;
+    public static final double MAX_MOTOR_RPM = 6000;
+    public static final SpeedTuning SMALL_SHOOTER = new SpeedTuning();
+    private static final long DIRECTION_SETTLE_NANOS = 400_000_000L;
+    private static final double DEFAULT_RPM_TOLERANCE = 150;
 
-    public enum Mode { OFF, VELOCITY, VOLTAGE, LEFT_TEST, RIGHT_TEST, FAULT }
-    private final DcMotorEx left, right;
+    /** Shooter setpoint, motor direction, and gains in volts per RPM. */
+    public static final class SpeedTuning {
+        public volatile double setpointRpm = 0;
+        public volatile double kV, kP;
+        public volatile boolean reversed;
+
+        public SpeedTuning() { this(0.015, 0.0016, true); }
+
+        public SpeedTuning(double kP, double kV, boolean reversed) {
+            this.kP = kP;
+            this.kV = kV;
+            this.reversed = reversed;
+        }
+    }
+
+    /** Launcher exposes separate Panels settings for the big and small shooters. */
+    public static class Settings {
+        public volatile String motorName;
+        public volatile boolean reversed = false, directionVerified = false;
+        public volatile double ticksPerRevolution = 28;
+        // Volts, motor-shaft RPM and seconds. Initial estimates, not measured gains.
+        public volatile double kP = 0.002, kI = 0, kD = 0, kS = 0, kV = 12.0 / 6000, kA = 0;
+        public volatile double maxVoltage = 3, testVoltage = 1, maxAccelerationRpmPerSecond = 1000;
+        public volatile double integralLimitRpmSeconds = 5000;
+        public volatile double rpmTolerance = DEFAULT_RPM_TOLERANCE, speedDwellMs = 250, spinupTimeoutMs = 4000;
+        public volatile double encoderResponseTimeoutMs = 1000, minimumEncoderRpm = 50;
+        public volatile double maximumSampleGapMs = 250;
+        public Settings(String motorName) { this.motorName = motorName; }
+
+        Settings(String motorName, SpeedTuning tuning) {
+            this(motorName);
+            kV = tuning.kV;
+            kP = tuning.kP;
+            reversed = tuning.reversed;
+        }
+    }
+
+    public enum Mode { OFF, VELOCITY, FEEDFORWARD, VOLTAGE, DIRECTION_TEST, FAULT }
+    private final DcMotorEx motor;
+    private final Settings settings;
     private final DoubleSupplier voltageSource;
     private final LongSupplier clock;
-    private final boolean initialLeftReversed, initialRightReversed;
+    private final String initialName;
+    private final double initialTicksPerRevolution;
+    private boolean appliedReversed;
+    private long directionAppliedAt = Long.MIN_VALUE;
     private Mode mode = Mode.OFF;
     private boolean enabled, closed, sampled, referenceInitialized, inBand, outputLimited;
     private double measuredRpm, batteryVolts = Double.NaN, targetRpm, voltageRequest;
@@ -43,22 +72,46 @@ public class ShooterFlywheel {
     private long outsideSpeedSince = Long.MIN_VALUE, missingEncoderSince = Long.MIN_VALUE;
     private String status = "INIT: encoder readout only";
 
-    public ShooterFlywheel(HardwareMap map) {
-        this(map.get(DcMotorEx.class, leftMotorName), map.get(DcMotorEx.class, rightMotorName),
-                () -> readBattery(map), System::nanoTime);
+    ShooterFlywheel(DcMotorEx motor, Settings settings, HardwareMap map) {
+        this(motor, settings, () -> readBattery(map), System::nanoTime);
     }
 
-    ShooterFlywheel(DcMotorEx left, DcMotorEx right, DoubleSupplier voltageSource, LongSupplier clock) {
-        this.left = left; this.right = right; this.voltageSource = voltageSource; this.clock = clock;
-        initialLeftReversed = leftReversed; initialRightReversed = rightReversed;
+    public static ShooterFlywheel forSmallShooter(DcMotorEx motor, HardwareMap map) {
+        return forSmallShooter(motor, map, DEFAULT_RPM_TOLERANCE);
+    }
+
+    public static ShooterFlywheel forSmallShooter(DcMotorEx motor, HardwareMap map, double rpmTolerance) {
+        return forShooter(motor, map, "smallShooter", SMALL_SHOOTER, rpmTolerance);
+    }
+
+    public static ShooterFlywheel forTuning(DcMotorEx motor, HardwareMap map, String motorName, SpeedTuning tuning) {
+        return forShooter(motor, map, motorName, tuning, DEFAULT_RPM_TOLERANCE);
+    }
+
+    private static ShooterFlywheel forShooter(DcMotorEx motor, HardwareMap map, String motorName,
+                                              SpeedTuning tuning, double rpmTolerance) {
+        Settings settings = new Settings(motorName, tuning);
+        settings.directionVerified = true;
+        settings.maxVoltage = 12;
+        settings.maxAccelerationRpmPerSecond = MAX_MOTOR_RPM;
+        settings.rpmTolerance = rpmTolerance;
+        ShooterFlywheel flywheel = new ShooterFlywheel(motor, settings, map);
+        flywheel.enable();
+        return flywheel;
+    }
+
+    ShooterFlywheel(DcMotorEx motor, Settings settings, DoubleSupplier voltageSource, LongSupplier clock) {
+        this.motor = motor; this.settings = settings; this.voltageSource = voltageSource; this.clock = clock;
+        appliedReversed = settings.reversed;
+        initialName = settings.motorName;
+        initialTicksPerRevolution = settings.ticksPerRevolution;
         try {
             zeroMotors();
-            left.setDirection(initialLeftReversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
-            right.setDirection(initialRightReversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
-            left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-            left.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            right.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            if (initialName == null || initialName.trim().isEmpty() || !positive(initialTicksPerRevolution))
+                throw new IllegalArgumentException("Set a motor name and positive encoder ticks per revolution");
+            motor.setDirection(appliedReversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
+            motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         } catch (RuntimeException failure) {
             try { zeroMotors(); } catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
             throw failure;
@@ -67,11 +120,57 @@ public class ShooterFlywheel {
 
     public void enable() { if (!closed) enabled = true; }
 
+    /** Apply a live tuning direction and wait for the flywheel to brake before resuming. */
+    public boolean prepareTuningDirection(boolean reversed) {
+        if (closed) return false;
+        if (reversed != appliedReversed) {
+            idle();
+            motor.setDirection(reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
+            appliedReversed = settings.reversed = reversed;
+            directionAppliedAt = clock.getAsLong();
+        }
+        if (directionAppliedAt == Long.MIN_VALUE) return true;
+        if (clock.getAsLong() - directionAppliedAt < DIRECTION_SETTLE_NANOS
+                || Math.abs(ticksToRpm(motor.getVelocity())) > settings.minimumEncoderRpm) return false;
+        directionAppliedAt = Long.MIN_VALUE;
+        return true;
+    }
+
+    /** Apply live gains and take one control step. Call each loop while requesting speed. */
+    public void updateRpm(double rpm, SpeedTuning tuning) {
+        updateSpeed(rpm, tuning.kV, tuning.kP, Mode.VELOCITY, false);
+    }
+
+    /** Tune the voltage feedforward on its own when the feedback gain is zero. */
+    public void updateTuningRpm(double rpm, SpeedTuning tuning) {
+        double kV = tuning.kV;
+        double kP = tuning.kP;
+        if (rpm == 0 || (kV == 0 && kP == 0)) {
+            idle();
+            return;
+        }
+        // Setting kP to zero is a deliberate switch to tuning without feedback.
+        if (mode == Mode.FAULT && kP == 0 && settings.kP != 0) idle();
+        updateSpeed(rpm, kV, kP, kP == 0 ? Mode.FEEDFORWARD : Mode.VELOCITY, true);
+    }
+
+    private void updateSpeed(double rpm, double kV, double kP, Mode requestedMode, boolean tuning) {
+        if (mode == Mode.OFF) sampled = false; // Start a fresh sample window after idle.
+        settings.kV = kV;
+        settings.kP = kP;
+        requestSpeed(rpm, requestedMode);
+        periodic(tuning);
+    }
+
     public void requestRpm(double rpm) {
+        requestSpeed(rpm, Mode.VELOCITY);
+    }
+
+    private void requestSpeed(double rpm, Mode requestedMode) {
         if (!enabled || closed || mode == Mode.FAULT) return;
         if (!Double.isFinite(rpm) || rpm < 0 || rpm > MAX_MOTOR_RPM) { fault("RPM target must be 0..6000"); return; }
         if (rpm == 0) { idle(); return; }
-        if (mode != Mode.VELOCITY) enterMode(Mode.VELOCITY);
+        if (mode != requestedMode) enterMode(requestedMode);
         if (rpm != targetRpm) {
             integral = 0; inBand = false; atSpeedSince = Long.MIN_VALUE;
             // Do not reset the encoder-response watchdog on a live target change.
@@ -79,7 +178,7 @@ public class ShooterFlywheel {
         targetRpm = rpm;
     }
 
-    /** Shared open-loop voltage for kS/kV measurements. Requires verified directions. */
+    /** Open-loop voltage for kS/kV measurements. Requires a verified motor direction. */
     public void requestVoltage(double volts) {
         if (!enabled || closed || mode == Mode.FAULT) return;
         if (!Double.isFinite(volts) || volts < 0 || volts > 12) { fault("Voltage request must be 0..12 V"); return; }
@@ -88,11 +187,10 @@ public class ShooterFlywheel {
         voltageRequest = volts;
     }
 
-    /** The other motor coasts. The left encoder measures either motor through the belt. */
-    public void requestMotorTest(boolean testLeft) {
+    /** Low-voltage direction/encoder check for this motor only. */
+    public void requestMotorTest() {
         if (!enabled || closed || mode == Mode.FAULT) return;
-        Mode requested = testLeft ? Mode.LEFT_TEST : Mode.RIGHT_TEST;
-        if (mode != requested) enterMode(requested);
+        if (mode != Mode.DIRECTION_TEST) enterMode(Mode.DIRECTION_TEST);
     }
 
     private void enterMode(Mode selected) {
@@ -102,61 +200,77 @@ public class ShooterFlywheel {
     /** Release is the acknowledgement for a latched fault; never ramps down on release. */
     public void idle() {
         if (closed) return;
-        status = mode == Mode.FAULT ? "Stopped after: " + status : "OFF (coasting)";
+        status = mode == Mode.FAULT ? "Stopped after: " + status : "OFF (BRAKE)";
         mode = Mode.OFF; targetRpm = 0; resetControl(); zeroMotors();
     }
 
     public void periodic() {
+        periodic(false);
+    }
+
+    private void periodic(boolean tuning) {
         if (closed) return;
         try {
             if (!hardwareConfigurationMatches()) {
-                fault("Motor direction changed; STOP and INIT to apply it"); return;
+                fault("Motor name, direction or encoder resolution changed; STOP and INIT"); return;
             }
             long previousSample = sampleTime;
             boolean hadSample = sampled;
-            // Hard-coded feedback source: launcherLeft. The right encoder is never read.
-            measuredRpm = ticksToRpm(left.getVelocity());
+            boolean feedforwardOnly = mode == Mode.FEEDFORWARD;
+            // Each shooter uses its own encoder and independently tuned controller.
+            measuredRpm = motor.getVelocity() * 60 / initialTicksPerRevolution;
             batteryVolts = voltageSource.getAsDouble();
             sampleTime = clock.getAsLong(); // Include blocking read time in the stale-loop guard.
             sampled = true;
-            if (!Double.isFinite(measuredRpm)
+            if ((!feedforwardOnly && !Double.isFinite(measuredRpm))
                     || !Double.isFinite(batteryVolts) || batteryVolts < 6 || batteryVolts > 16.8) {
                 fault("Invalid encoder or battery reading (battery must be 6..16.8 V)"); return;
             }
             if (!enabled || mode == Mode.OFF || mode == Mode.FAULT) { zeroMotors(); return; }
             if (!validConfiguration()) { fault("Invalid flywheel gains, limits or watchdog settings"); return; }
             if (hadSample && (sampleTime < previousSample
-                    || (sampleTime - previousSample) * 1e-6 > maximumSampleGapMs)) {
-                fault("Control loop gap: release, check loop timing, then retry"); return;
+                    || (sampleTime - previousSample) * 1e-6 > settings.maximumSampleGapMs)) {
+                if (tuning) {
+                    resetControl();
+                    zeroMotors();
+                    status = "Control loop gap. Waiting for the next sample";
+                } else {
+                    fault("Control loop gap: release, check loop timing, then retry");
+                }
+                return;
             }
-            boolean individual = mode == Mode.LEFT_TEST || mode == Mode.RIGHT_TEST;
-            if (!individual && !directionsVerified) { fault("Verify both motor directions and the feedback encoder first"); return; }
-            if (!individual && measuredRpm < -minimumEncoderRpm) {
+            boolean individual = mode == Mode.DIRECTION_TEST;
+            if (!individual && !settings.directionVerified) { fault("Verify this motor direction and its encoder first"); return; }
+            if (!individual && !feedforwardOnly && measuredRpm < -settings.minimumEncoderRpm) {
                 fault("Feedback encoder runs backward; verify directions before RPM control"); return;
             }
             double dt = controlTime == Long.MIN_VALUE ? 0 : (sampleTime - controlTime) * 1e-9;
             controlTime = sampleTime;
             if (mode == Mode.VELOCITY) updateVelocity(dt);
-            else {
+            else if (feedforwardOnly) {
+                feedbackVolts = 0;
+                feedforwardVolts = settings.kV * targetRpm;
+                requestedVolts = feedforwardVolts;
+            } else {
                 feedbackVolts = feedforwardVolts = 0;
-                requestedVolts = individual ? testVoltage : voltageRequest;
+                requestedVolts = individual ? settings.testVoltage : voltageRequest;
             }
             if (mode == Mode.FAULT) return;
             if (!Double.isFinite(requestedVolts)) { fault("Nonfinite controller voltage"); return; }
-            double ceiling = Math.min(maxVoltage, batteryVolts);
+            double ceiling = Math.min(settings.maxVoltage, batteryVolts);
             appliedVolts = clamp(requestedVolts, 0, ceiling); // Flywheel never actively reverses.
             outputLimited = requestedVolts < 0 || requestedVolts > ceiling;
             power = appliedVolts / batteryVolts;
-            if (!checkEncoder()) return;
+            if (!feedforwardOnly && !checkEncoder()) return;
             if (mode == Mode.VELOCITY) {
-                updateReadiness();
+                updateReadiness(tuning);
                 if (mode == Mode.FAULT) return;
             }
-            left.setPower(mode == Mode.RIGHT_TEST ? 0 : power);
-            right.setPower(mode == Mode.LEFT_TEST ? 0 : power);
+            motor.setPower(power);
             previousMeasuredRpm = measuredRpm;
-            status = mode == Mode.VELOCITY ? (isAtSpeed() ? "Flywheel at speed" : "Ramping / recovering speed")
-                    : individual ? "Single motor direction test (linked shafts can both turn)" : "Shared voltage characterization";
+            if (feedforwardOnly) status = "Feedforward tuning";
+            else status = mode == Mode.VELOCITY ? (isAtSpeed() ? "Flywheel at speed" : "Ramping / recovering speed")
+                    : individual ? "Selected motor direction test" : "Selected motor voltage characterization";
         } catch (RuntimeException failure) {
             try { fault("Hardware exception; check connections before retrying"); }
             catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
@@ -165,82 +279,85 @@ public class ShooterFlywheel {
     }
 
     private void updateVelocity(double dt) {
-        if (targetRpm <= rpmTolerance) { fault("Target RPM must exceed rpmTolerance"); return; }
-        double[] gains = { kP, kI, kD, kS, kV, kA, integralLimitRpmSeconds };
+        if (targetRpm <= settings.rpmTolerance) { fault("Target RPM must exceed the speed tolerance"); return; }
+        double[] gains = { settings.kP, settings.kI, settings.kD, settings.kS, settings.kV, settings.kA, settings.integralLimitRpmSeconds };
         if (!Arrays.equals(appliedGains, gains)) { integral = 0; appliedGains = gains; }
         if (!referenceInitialized) {
             referenceRpm = Math.max(0, Math.min(MAX_MOTOR_RPM, measuredRpm));
             previousMeasuredRpm = measuredRpm; referenceInitialized = true;
         }
         double previousReference = referenceRpm;
-        double change = maxAccelerationRpmPerSecond * dt;
+        double change = settings.maxAccelerationRpmPerSecond * dt;
         referenceRpm += clamp(targetRpm - referenceRpm, -change, change);
         referenceAcceleration = dt > 0 ? (referenceRpm - previousReference) / dt : 0;
         double error = referenceRpm - measuredRpm;
         double measuredAcceleration = dt > 0 ? (measuredRpm - previousMeasuredRpm) / dt : 0;
-        feedforwardVolts = (referenceRpm > 0 ? kS : 0) + kV * referenceRpm + kA * referenceAcceleration;
-        double pd = kP * error - kD * measuredAcceleration;
-        double candidate = clamp(integral + error * dt, -integralLimitRpmSeconds, integralLimitRpmSeconds);
-        double raw = pd + kI * candidate + feedforwardVolts;
-        double ceiling = Math.min(maxVoltage, batteryVolts);
+        feedforwardVolts = (referenceRpm > 0 ? settings.kS : 0) + settings.kV * referenceRpm + settings.kA * referenceAcceleration;
+        double pd = settings.kP * error - settings.kD * measuredAcceleration;
+        double candidate = clamp(integral + error * dt, -settings.integralLimitRpmSeconds, settings.integralLimitRpmSeconds);
+        double raw = pd + settings.kI * candidate + feedforwardVolts;
+        double ceiling = Math.min(settings.maxVoltage, batteryVolts);
         if ((raw >= 0 && raw <= ceiling) || (raw > ceiling && error < 0) || (raw < 0 && error > 0)) integral = candidate;
-        feedbackVolts = pd + kI * integral;
+        feedbackVolts = pd + settings.kI * integral;
         requestedVolts = feedbackVolts + feedforwardVolts;
     }
 
-    private void updateReadiness() {
+    private void updateReadiness(boolean tuning) {
         boolean rampFinished = referenceRpm == targetRpm;
-        boolean speedInBand = rampFinished && Math.abs(measuredRpm - targetRpm) <= rpmTolerance;
+        boolean speedInBand = rampFinished && Math.abs(measuredRpm - targetRpm) <= settings.rpmTolerance;
         if (speedInBand) {
             if (!inBand) atSpeedSince = sampleTime;
             inBand = true; outsideSpeedSince = Long.MIN_VALUE;
         } else {
             inBand = false; atSpeedSince = Long.MIN_VALUE;
-            // A deliberate ramp is allowed its own time. Once final speed is requested,
-            // allow a bounded spin-up/recovery window; encoder faults remain active throughout.
-            if (!rampFinished) outsideSpeedSince = Long.MIN_VALUE;
+            // During shooting, allow a bounded recovery window after the ramp finishes.
+            if (tuning || !rampFinished) outsideSpeedSince = Long.MIN_VALUE;
             else if (outsideSpeedSince == Long.MIN_VALUE) outsideSpeedSince = sampleTime;
-            if (outsideSpeedSince != Long.MIN_VALUE && elapsedMs(outsideSpeedSince) >= spinupTimeoutMs) {
+            if (outsideSpeedSince != Long.MIN_VALUE && elapsedMs(outsideSpeedSince) >= settings.spinupTimeoutMs) {
                 fault("Speed timeout: check feedforward, voltage cap, load and feedback encoder");
             }
         }
     }
 
     private boolean checkEncoder() {
-        // With the belt installed, either powered motor must turn the left encoder.
-        boolean missing = appliedVolts >= 0.5 && Math.abs(measuredRpm) < minimumEncoderRpm;
+        // A powered shooter must produce a response from its own encoder.
+        boolean missing = appliedVolts >= 0.5 && Math.abs(measuredRpm) < settings.minimumEncoderRpm;
         if (missing && missingEncoderSince == Long.MIN_VALUE) missingEncoderSince = sampleTime;
         else if (!missing) missingEncoderSince = Long.MIN_VALUE;
-        if (missingEncoderSince != Long.MIN_VALUE && elapsedMs(missingEncoderSince) >= encoderResponseTimeoutMs) {
-            fault("No feedback encoder response; check encoder, belt, motor wiring or obstruction"); return false;
+        if (missingEncoderSince != Long.MIN_VALUE && elapsedMs(missingEncoderSince) >= settings.encoderResponseTimeoutMs) {
+            fault("No feedback encoder response; check encoder, motor wiring or obstruction"); return false;
         }
         return true;
     }
 
     private boolean hardwareConfigurationMatches() {
-        return initialLeftReversed == leftReversed && initialRightReversed == rightReversed;
+        return appliedReversed == settings.reversed && initialName.equals(settings.motorName)
+                && initialTicksPerRevolution == settings.ticksPerRevolution;
     }
 
     private boolean validConfiguration() {
-        return nonnegative(kP) && nonnegative(kI) && nonnegative(kD) && nonnegative(kS) && nonnegative(kV) && nonnegative(kA)
-                && positive(maxVoltage) && maxVoltage <= 12 && nonnegative(testVoltage) && testVoltage <= 1.8
-                && positive(maxAccelerationRpmPerSecond) && nonnegative(integralLimitRpmSeconds)
-                && positive(rpmTolerance) && nonnegative(speedDwellMs) && positive(spinupTimeoutMs)
-                && positive(encoderResponseTimeoutMs) && positive(minimumEncoderRpm)
-                && positive(maximumSampleGapMs) && maximumSampleGapMs <= 250;
+        return nonnegative(settings.kP) && nonnegative(settings.kI) && nonnegative(settings.kD) && nonnegative(settings.kS) && nonnegative(settings.kV) && nonnegative(settings.kA)
+                && positive(settings.maxVoltage) && settings.maxVoltage <= 12 && nonnegative(settings.testVoltage) && settings.testVoltage <= 1.8
+                && positive(settings.maxAccelerationRpmPerSecond) && nonnegative(settings.integralLimitRpmSeconds)
+                && positive(settings.rpmTolerance) && nonnegative(settings.speedDwellMs) && positive(settings.spinupTimeoutMs)
+                && positive(settings.encoderResponseTimeoutMs) && positive(settings.minimumEncoderRpm)
+                && positive(settings.maximumSampleGapMs) && settings.maximumSampleGapMs <= 250;
     }
 
     public boolean hasFreshSample() {
         long age = clock.getAsLong() - sampleTime;
         return sampled && hardwareConfigurationMatches() && age >= 0
-                && positive(maximumSampleGapMs) && age * 1e-6 <= maximumSampleGapMs;
+                && positive(settings.maximumSampleGapMs) && age * 1e-6 <= settings.maximumSampleGapMs;
+    }
+
+    public boolean isWithinTargetSpeed() {
+        return enabled && !closed && mode == Mode.VELOCITY && settings.directionVerified && validConfiguration()
+                && hasFreshSample() && Math.abs(measuredRpm - targetRpm) <= settings.rpmTolerance;
     }
 
     public boolean isAtSpeed() {
-        return enabled && !closed && mode == Mode.VELOCITY && directionsVerified && validConfiguration()
-                && hasFreshSample() && inBand && referenceRpm == targetRpm
-                && Math.abs(measuredRpm - targetRpm) <= rpmTolerance
-                && (clock.getAsLong() - atSpeedSince) * 1e-6 >= speedDwellMs;
+        return isWithinTargetSpeed() && inBand && referenceRpm == targetRpm
+                && (clock.getAsLong() - atSpeedSince) * 1e-6 >= settings.speedDwellMs;
     }
 
     private void fault(String reason) {
@@ -255,7 +372,7 @@ public class ShooterFlywheel {
 
     private void zeroMotors() {
         power = appliedVolts = 0;
-        try { left.setPower(0); } finally { right.setPower(0); }
+        motor.setPower(0);
     }
 
     public void stop() {
@@ -277,12 +394,12 @@ public class ShooterFlywheel {
     private static double clamp(double n, double low, double high) { return Math.max(low, Math.min(high, n)); }
     private static boolean positive(double n) { return Double.isFinite(n) && n > 0; }
     private static boolean nonnegative(double n) { return Double.isFinite(n) && n >= 0; }
-    public static double rpmToTicks(double rpm) { return rpm * TICKS_PER_REVOLUTION / 60; }
-    public static double ticksToRpm(double ticks) { return ticks * 60 / TICKS_PER_REVOLUTION; }
+    public double rpmToTicks(double rpm) { return rpm * initialTicksPerRevolution / 60; }
+    public double ticksToRpm(double ticks) { return ticks * 60 / initialTicksPerRevolution; }
     public Mode getMode() { return mode; }
     public String getStatus() { return status; }
     public double getMeasuredRpm() { return measuredRpm; }
-    public String getFeedbackEncoder() { return "LEFT"; }
+    public String getFeedbackEncoder() { return initialName; }
     public double getTargetRpm() { return targetRpm; }
     public double getReferenceRpm() { return referenceRpm; }
     public double getReferenceAccelerationRpmPerSecond() { return referenceAcceleration; }

@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.ivy.Command;
 import dev.nextftc.robot.Mechanism;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -13,8 +13,8 @@ import static com.pedropathing.ivy.commands.Commands.conditional;
 /**
  * The copy-paste starting point for every new mechanism (spec §4.2 anatomy):
  *
- *  1. @Config class — the public static fields below are live-editable in the
- *     FTC Dashboard (http://192.168.43.1:8080/dash) while an opmode runs.
+ *  1. @Configurable class — the public static fields below are live-editable in
+ *     Panels (http://192.168.43.1:8001) while an opmode runs.
  *  2. Constructor takes the hardware map and telemetry; hardware uses a name
  *     matching src/main/res/xml/teamconfig8103.xml verbatim.
  *  3. A Mode enum + switch inside periodic() — API methods only change the mode;
@@ -26,7 +26,7 @@ import static com.pedropathing.ivy.commands.Commands.conditional;
  *
  * Register construction, periodic(), and stop() together in Robot.
  */
-@Config
+@Configurable
 public class ExampleSubsystem implements Mechanism {
     public static double onPower = 1;
     public static double offPower = 0;
@@ -61,7 +61,7 @@ public class ExampleSubsystem implements Mechanism {
         return Command.build()
                 .setStart(() -> mode = Mode.ON)
                 .setDone(() -> false)
-                .setEnd(condition -> mode = Mode.OFF)
+                .setEnd(condition -> stop())
                 .requiring(this);
     }
 

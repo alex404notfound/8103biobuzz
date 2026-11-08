@@ -14,6 +14,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.hardware.MotorSafety;
 import org.firstinspires.ftc.teamcode.pedroPathing.TuningSafety;
 
 import java.util.Map;
@@ -184,23 +185,11 @@ abstract class SafeTuningOpMode<Result> extends TuningOpMode<Result> {
     }
 
     private void stopDrive() {
-        if (follower != null) follower.stop();
         try {
-            if (rawDrivetrain != null) rawDrivetrain.stop(true);
+            try { if (follower != null) follower.stop(); }
+            finally { if (rawDrivetrain != null) rawDrivetrain.stop(true); }
         } finally {
-            // Force SDK writes: Pedro's cached power threshold must not suppress a small final zero.
-            RuntimeException failure = null;
-            for (DcMotorEx motor : motors) {
-                if (motor == null) continue;
-                try {
-                    try { motor.setPower(0); }
-                    finally { motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE); }
-                } catch (RuntimeException fault) {
-                    if (failure == null) failure = fault;
-                    else failure.addSuppressed(fault);
-                }
-            }
-            if (failure != null) throw failure;
+            MotorSafety.stopAndBrake(motors);
         }
     }
 }

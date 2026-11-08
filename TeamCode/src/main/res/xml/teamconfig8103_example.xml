@@ -6,10 +6,10 @@
             <goBILDA5201SeriesMotor name="example" port="0" />
         </LynxModule>
         <LynxModule name="Control Hub" port="173">
-            <goBILDA5201SeriesMotor name="frontLeft" port="0" />
-            <goBILDA5201SeriesMotor name="frontRight" port="1" />
-            <goBILDA5201SeriesMotor name="backLeft" port="2" />
-            <goBILDA5201SeriesMotor name="backRight" port="3" />
+            <goBILDA312RpmMotor name="frontLeft" port="0" />
+            <goBILDA312RpmMotor name="frontRight" port="1" />
+            <goBILDA312RpmMotor name="backLeft" port="2" />
+            <goBILDA312RpmMotor name="backRight" port="3" />
             <goBILDAPinpoint name="pinpoint" port="0" bus="0" />
         </LynxModule>
     </LynxUsbDevice>

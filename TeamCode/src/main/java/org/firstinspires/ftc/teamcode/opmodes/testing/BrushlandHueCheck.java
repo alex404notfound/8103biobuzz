@@ -1,20 +1,19 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
-import com.qualcomm.hardware.lynx.LynxModule;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.AnalogInput;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
+import org.firstinspires.ftc.teamcode.hardware.BulkCacheSession;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 
 /** Reads the sensor's internal hue after configuring pin 0 for analog HSV output. */
+@Disabled
 @TeleOp(name = "Brushland Hue Check", group = "Diagnostics")
 public class BrushlandHueCheck extends OpMode {
     private static final long TELEMETRY_PERIOD_NS = 100_000_000L;
 
-    private final Map<LynxModule, LynxModule.BulkCachingMode> priorCacheModes =
-            new LinkedHashMap<>();
+    private final BulkCacheSession bulkCache = new BulkCacheSession();
     private AnalogInput hueInput;
     private long lastTelemetryNs;
     private long samples;
@@ -23,11 +22,9 @@ public class BrushlandHueCheck extends OpMode {
     private boolean previousB;
 
     @Override public void init() {
+        telemetry = RobotTelemetry.forOpMode(telemetry);
         hueInput = hardwareMap.get(AnalogInput.class, "colorHue");
-        for (LynxModule hub : hardwareMap.getAll(LynxModule.class)) {
-            priorCacheModes.put(hub, hub.getBulkCachingMode());
-            hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
-        }
+        bulkCache.enable(hardwareMap);
         telemetry.setMsTransmissionInterval(100);
         telemetry.addLine("First configure ANALOG_HUE_CALIBRATION, then power-cycle into Analog Input.");
         telemetry.addLine("Sensor pin 0 must reach the Analog Input named colorHue.");
@@ -44,9 +41,7 @@ public class BrushlandHueCheck extends OpMode {
     }
 
     private void sampleAndDisplay() {
-        for (LynxModule hub : priorCacheModes.keySet()) {
-            hub.clearBulkCache();
-        }
+        bulkCache.clear();
         double voltage = hueInput.getVoltage();
         // Brushland defines its full analog hue range as 0..3.3 V, not the hub ADC maximum.
         double hue = voltage / 3.3 * 360.0;
@@ -84,9 +79,6 @@ public class BrushlandHueCheck extends OpMode {
     }
 
     @Override public void stop() {
-        for (Map.Entry<LynxModule, LynxModule.BulkCachingMode> entry : priorCacheModes.entrySet()) {
-            entry.getKey().setBulkCachingMode(entry.getValue());
-        }
-        priorCacheModes.clear();
+        bulkCache.close();
     }
 }

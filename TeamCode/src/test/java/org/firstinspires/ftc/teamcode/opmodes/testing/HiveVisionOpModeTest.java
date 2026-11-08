@@ -19,7 +19,7 @@ public class HiveVisionOpModeTest {
 
     @Before public void setUp() {
         op = new HiveVisionTest() {
-            @Override protected Telemetry withDashboard(Telemetry driverTelemetry) { return driverTelemetry; }
+            @Override protected Telemetry withBrowserTelemetry(Telemetry driverTelemetry) { return driverTelemetry; }
         };
         op.hardwareMap = hardware;
         op.telemetry = mock(Telemetry.class);

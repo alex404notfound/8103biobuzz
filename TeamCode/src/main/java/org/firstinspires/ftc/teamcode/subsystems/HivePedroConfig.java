@@ -1,9 +1,9 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
+import com.bylazar.configurables.annotations.Configurable;
 
 /** Practice-only approach settings, captured at INIT. Distances are from robot center to ball center. */
-@Config
+@Configurable
 public final class HivePedroConfig {
     private HivePedroConfig() { }
 

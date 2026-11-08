@@ -2,32 +2,26 @@ package org.firstinspires.ftc.teamcode.opmodes.testing;
 
 import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
-import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.robot.Alliance;
 import org.firstinspires.ftc.teamcode.robot.FieldConstants.HiveCell;
-import org.firstinspires.ftc.teamcode.subsystems.AxonTurret;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.HiveAutoAim;
-import org.firstinspires.ftc.teamcode.subsystems.Limelight;
+import org.firstinspires.ftc.teamcode.subsystems.ServoTurret;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class HiveAutoAimOpModeTest {
-    private final AxonTurret turret = mock(AxonTurret.class);
+    private final ServoTurret turret = mock(ServoTurret.class);
     private final Drivetrain drive = mock(Drivetrain.class);
-    private final Limelight vision = mock(Limelight.class);
     private final HiveAutoAim aim = mock(HiveAutoAim.class);
     private final Telemetry telemetry = mock(Telemetry.class);
     private HiveAutoAimTest op;
@@ -37,11 +31,11 @@ public class HiveAutoAimOpModeTest {
         when(drive.getPose()).thenReturn(new Pose(30, 40, .25));
         when(drive.getVelocity()).thenReturn(new Velocity(0, 0, 0));
         when(drive.isLocalizationReady()).thenReturn(true);
-        when(turret.hasReference()).thenReturn(true);
-        when(turret.getPositionDegrees()).thenReturn(15.0);
-        when(aim.hasAim()).thenReturn(true);
+        when(turret.getCommandedDegrees()).thenReturn(15.0);
+        when(turret.getMinDegrees()).thenReturn(-90.0);
+        when(turret.getMaxDegrees()).thenReturn(90.0);
         when(aim.getTurretGoalDegrees()).thenReturn(35.0);
-        op = new HiveAutoAimTest(turret, drive, vision, aim, telemetry);
+        op = new HiveAutoAimTest(turret, drive, aim, telemetry);
         op.gamepad1 = mock(Gamepad.class);
         op.gamepad2 = mock(Gamepad.class);
     }
@@ -59,23 +53,22 @@ public class HiveAutoAimOpModeTest {
     }
 
     @Test public void initAndHeldStartTriggerCannotMoveUntilEveryDeadmanIsReleased() {
+        seedPose();
         op.gamepad1.right_trigger = 1;
         op.init_loop(); op.loop();
-        verify(turret, never()).enable();
-        verify(turret, never()).requestPosition(anyDouble());
+        verify(turret, never()).setAngleDegrees(anyDouble());
         op.start(); op.loop();
-        verify(turret).enable();
-        verify(turret, never()).requestPosition(anyDouble());
+        verify(turret, never()).setAngleDegrees(anyDouble());
         op.gamepad1.right_trigger = 0;
         op.gamepad2.left_bumper = true;
         op.loop();
         op.gamepad1.right_trigger = 1;
         op.gamepad2.left_bumper = false;
         op.loop();
-        verify(turret, never()).requestPosition(anyDouble());
+        verify(turret, never()).setAngleDegrees(anyDouble());
         op.gamepad1.right_trigger = 0; op.loop();
         op.gamepad1.right_trigger = 1; op.loop();
-        verify(turret).requestPosition(35);
+        verify(turret).setAngleDegrees(35);
     }
 
     @Test public void holdAimUsesLatestGoalAndStopsTheChassisEvenWithDriveDeadmanHeld() {
@@ -84,15 +77,23 @@ public class HiveAutoAimOpModeTest {
         op.gamepad2.left_stick_y = -1;
         op.gamepad1.right_trigger = 1;
         op.loop();
-        verify(turret).requestPosition(35);
+        InOrder order = inOrder(drive, aim, turret);
+        order.verify(drive).periodic();
+        order.verify(aim).update(true, true, 30, 40, .25, 15, -90, 90, Alliance.RED, HiveCell.RED_AUDIENCE);
+        order.verify(turret).setAngleDegrees(35);
         verify(drive, atLeastOnce()).stop();
         verify(drive, never()).arcadeDrive(anyDouble(), anyDouble(), anyDouble(), any());
         when(aim.getTurretGoalDegrees()).thenReturn(-20.0);
         op.loop();
-        verify(turret).requestPosition(-20);
+        verify(turret).setAngleDegrees(-20);
+        clearInvocations(turret);
+        op.gamepad1.right_trigger = 0;
+        op.loop();
+        verify(turret, never()).setAngleDegrees(anyDouble());
     }
 
     @Test public void movingOrUnhealthyChassisPreventsAnOtherwiseAvailableAim() {
+        seedPose();
         arm();
         op.gamepad1.right_trigger = 1;
         for (Velocity velocity : new Velocity[]{new Velocity(1.01, 0, 0), new Velocity(.8, .8, 0),
@@ -104,11 +105,11 @@ public class HiveAutoAimOpModeTest {
         when(drive.getVelocity()).thenReturn(new Velocity(0, 0, 0));
         when(drive.isLocalizationReady()).thenReturn(false);
         op.loop();
-        verify(turret, never()).requestPosition(anyDouble());
-        verify(turret, atLeastOnce()).idle();
+        verify(turret, never()).setAngleDegrees(anyDouble());
     }
 
     @Test public void invalidOrExcessiveStationarityThresholdsDisableAim() {
+        seedPose();
         arm(); op.gamepad1.right_trigger = 1;
         for (double threshold : new double[]{-.1, 3.01, Double.NaN, Double.POSITIVE_INFINITY}) {
             HiveAutoAimTest.maxAimChassisSpeed = threshold;
@@ -119,57 +120,53 @@ public class HiveAutoAimOpModeTest {
             HiveAutoAimTest.maxAimChassisTurnDegrees = threshold;
             op.loop();
         }
-        verify(turret, never()).requestPosition(anyDouble());
-        verify(turret, atLeastOnce()).idle();
+        verify(turret, never()).setAngleDegrees(anyDouble());
     }
 
-    @Test public void losingUsableVisionIdlesRatherThanReusingTheLastGoal() {
+    @Test public void losingUsablePoseAimSendsNoNewServoPosition() {
+        seedPose();
         arm(); op.gamepad1.right_trigger = 1;
         op.loop();
-        verify(turret).requestPosition(35);
+        verify(turret).setAngleDegrees(35);
         clearInvocations(turret, drive);
-        when(aim.hasAim()).thenReturn(false);
+        when(aim.getTurretGoalDegrees()).thenReturn(Double.NaN);
         op.loop();
-        verify(turret, atLeastOnce()).idle();
-        verify(turret, never()).requestPosition(anyDouble());
+        verify(turret, never()).setAngleDegrees(anyDouble());
         verify(drive, atLeastOnce()).stop();
     }
 
-    @Test public void manualTurretJogOverridesAutoAimWithItsOwnDeadmanAndDeadband() {
+    @Test public void manualTurretNudgeOverridesAimOnlyWhileItsDeadmanIsHeld() {
         arm();
         op.gamepad1.right_trigger = 1;
         op.gamepad1.left_bumper = true;
-        op.gamepad1.left_stick_x = -.5f;
+        when(op.gamepad1.dpadLeftWasPressed()).thenReturn(true, false);
         op.loop();
-        verify(turret).requestManual(-.5);
-        verify(turret, never()).requestPosition(anyDouble());
-        op.gamepad1.left_stick_x = .05f;
+        verify(turret).nudgeDegrees(-5);
+        verify(turret, never()).setAngleDegrees(anyDouble());
         op.loop();
-        verify(turret).requestManual(0);
         op.gamepad1.left_bumper = false;
         op.gamepad1.right_trigger = 0;
-        op.gamepad1.left_stick_x = 0;
+        when(op.gamepad1.dpadRightWasPressed()).thenReturn(true);
         op.loop();
-        verify(turret, atLeastOnce()).idle();
+        verify(turret).nudgeDegrees(anyDouble());
+        verify(turret, never()).setAngleDegrees(anyDouble());
     }
 
-    @Test public void cancelRemovesPowerBeforeSamplingAndHeldTriggerCannotResume() {
+    @Test public void cancelStopsPositionUpdatesAndHeldTriggerCannotResume() {
+        seedPose();
         arm(); op.gamepad1.right_trigger = 1; op.loop();
         clearInvocations(turret, drive, aim);
         op.gamepad1.x = true; op.loop();
-        InOrder order = inOrder(turret);
-        order.verify(turret).idle();
-        order.verify(turret).periodic();
         verify(drive, atLeastOnce()).stop();
         verify(aim).clear();
         op.gamepad1.x = false; op.loop();
-        verify(turret, never()).requestPosition(anyDouble());
+        verify(turret, never()).setAngleDegrees(anyDouble());
         op.gamepad1.right_trigger = 0; op.loop();
         op.gamepad1.right_trigger = 1; op.loop();
-        verify(turret).requestPosition(35);
+        verify(turret).setAngleDegrees(35);
     }
 
-    @Test public void dashboardConfiguredPoseAloneDoesNotAuthorizeFieldCentricDrive() {
+    @Test public void panelsConfiguredPoseAloneDoesNotAuthorizeFieldCentricDrive() {
         HiveAutoAimTest.startPoseConfigured = true;
         HiveAutoAimTest.startX = 30; HiveAutoAimTest.startY = 40;
         arm();
@@ -273,7 +270,7 @@ public class HiveAutoAimOpModeTest {
         seedPose(); arm();
         when(drive.getPose()).thenReturn(new Pose(120, 120, .5));
         op.loop();
-        verify(aim).update(null, 0, true, 120, 120, .5, true, 15,
+        verify(aim).update(true, true, 120, 120, .5, 15, -90, 90,
                 Alliance.RED, HiveCell.RED_AUDIENCE);
         verify(telemetry).addData("Field half (estimate)", "BLUE_HALF / FAR_HALF");
         assertEquals(Alliance.RED, HiveAutoAimTest.alliance);
@@ -281,51 +278,44 @@ public class HiveAutoAimOpModeTest {
         HiveAutoAimTest.alliance = Alliance.BLUE;
         HiveAutoAimTest.selectedCell = HiveCell.BLUE_FAR;
         op.loop();
-        verify(aim).update(null, 0, true, 120, 120, .5, true, 15,
+        verify(aim).update(true, true, 120, 120, .5, 15, -90, 90,
                 Alliance.BLUE, HiveCell.BLUE_FAR);
     }
 
-    @Test public void forwardsExposureAgeAndCurrentMeasuredPoseToAim() {
-        LLResult frame = mock(LLResult.class);
-        when(vision.getFreshResult()).thenReturn(frame);
-        when(vision.getFreshResultAgeMs()).thenReturn(62.5);
-        arm();
-        op.loop();
-        verify(aim).update(frame, 62.5, true, 30, 40, .25, true, 15,
+    @Test public void forwardsCurrentMeasuredPoseAndExplicitFieldReferenceWithoutACamera() {
+        arm(); op.loop();
+        verify(aim).update(false, true, 30, 40, .25, 15, -90, 90,
                 Alliance.RED, HiveCell.RED_AUDIENCE);
     }
 
-    @Test public void zeroRequestIsConsumedByASensorSampleBeforeAnotherIdleCanCancelIt() {
-        arm();
-        when(op.gamepad1.bWasPressed()).thenReturn(true, false);
-        op.loop();
-        InOrder order = inOrder(turret);
-        order.verify(turret).idle();
-        order.verify(turret).zeroHere();
-        order.verify(turret).periodic();
-        List<String> controlCalls = new ArrayList<>();
-        mockingDetails(turret).getInvocations().forEach(invocation -> {
-            String name = invocation.getMethod().getName();
-            if (name.equals("idle") || name.equals("zeroHere") || name.equals("periodic")) controlCalls.add(name);
-        });
-        assertEquals("periodic", controlCalls.get(controlCalls.indexOf("zeroHere") + 1));
-        verify(aim).clear();
-        op.loop();
-        verify(turret).zeroHere();
+    @Test public void automaticAimRequiresAnAppliedFieldPoseEvenIfTheSolverReportsAvailable() {
+        arm(); op.gamepad1.right_trigger = 1; op.loop();
+        verify(turret, never()).setAngleDegrees(anyDouble());
     }
 
-    @Test public void referenceAndFaultButtonsDuringMotionAreConsumedWithoutDelayedAction() {
-        arm();
-        when(op.gamepad1.bWasPressed()).thenReturn(true, false);
-        when(op.gamepad1.yWasPressed()).thenReturn(true, false);
-        op.gamepad1.right_trigger = 1; op.loop();
-        op.gamepad1.right_trigger = 0; op.loop();
-        verify(turret, never()).zeroHere();
-        verify(turret, never()).clearFault();
-        when(op.gamepad1.yWasPressed()).thenReturn(true, false);
+    @Test public void driverSelectsAudienceOrFarEndForTheConfiguredAlliance() {
+        seedPose(); arm();
+        when(op.gamepad1.dpadUpWasPressed()).thenReturn(true, false);
         op.loop();
-        verify(turret).clearFault();
-        verify(aim).clear();
+        assertEquals(HiveCell.RED_FAR, HiveAutoAimTest.selectedCell);
+        verify(aim).update(true, true, 30, 40, .25, 15, -90, 90, Alliance.RED, HiveCell.RED_FAR);
+        HiveAutoAimTest.alliance = Alliance.BLUE;
+        when(op.gamepad1.dpadDownWasPressed()).thenReturn(true, false);
+        op.loop();
+        assertEquals(HiveCell.BLUE_AUDIENCE, HiveAutoAimTest.selectedCell);
+        verify(aim).update(true, true, 30, 40, .25, 15, -90, 90, Alliance.BLUE, HiveCell.BLUE_AUDIENCE);
+    }
+
+    @Test public void localizationFaultStopsAimUntilAnotherInitSeed() {
+        seedPose(); arm(); op.gamepad1.right_trigger = 1; op.loop();
+        clearInvocations(turret, drive, aim);
+        when(drive.isLocalizationReady()).thenReturn(false);
+        op.loop();
+        verify(drive).periodic();
+        verify(turret, never()).setAngleDegrees(anyDouble());
+        when(drive.isLocalizationReady()).thenReturn(true);
+        op.loop();
+        verify(turret, never()).setAngleDegrees(anyDouble());
     }
 
     @Test public void nullAllianceBlocksFieldDriveAfterAValidSeed() {
@@ -336,24 +326,25 @@ public class HiveAutoAimOpModeTest {
         verify(drive, never()).arcadeDrive(anyDouble(), anyDouble(), anyDouble(), any());
     }
 
-    @Test public void sensorFailureStopsAllHardwareAndClosedOpModeCannotRestart() {
-        arm();
-        doThrow(new IllegalStateException("encoder disconnected")).when(turret).periodic();
+    @Test public void servoFailureStopsDriveAndClosedOpModeCannotRestart() {
+        seedPose(); arm();
+        op.gamepad1.right_trigger = 1;
+        doThrow(new IllegalStateException("servo write failed")).when(turret).setAngleDegrees(35);
         assertThrows(IllegalStateException.class, op::loop);
-        verify(turret).stop(); verify(drive, atLeastOnce()).stop(); verify(vision).stop(); verify(aim).clear();
-        clearInvocations(turret, drive, vision, aim);
+        verify(drive, atLeastOnce()).stop(); verify(aim).clear();
+        clearInvocations(turret, drive, aim);
         op.start(); op.loop(); op.init_loop(); op.stop();
-        verifyNoInteractions(turret, drive, vision, aim);
+        verifyNoInteractions(turret, drive, aim);
     }
 
-    @Test public void cleanupStillStopsDriveAndVisionWhenTurretStopThrows() {
+    @Test public void cleanupStillClearsAimWhenDriveStopThrows() {
         arm();
-        doThrow(new IllegalStateException("servo write failed")).when(turret).stop();
+        doThrow(new IllegalStateException("drive write failed")).when(drive).stop();
         assertThrows(IllegalStateException.class, op::stop);
-        verify(drive, atLeastOnce()).stop(); verify(vision).stop(); verify(aim).clear();
-        clearInvocations(turret, drive, vision, aim);
+        verify(aim).clear();
+        clearInvocations(turret, drive, aim);
         op.stop(); op.start(); op.loop();
-        verifyNoInteractions(turret, drive, vision, aim);
+        verifyNoInteractions(turret, drive, aim);
     }
 
     private void seedPose() {
@@ -366,6 +357,6 @@ public class HiveAutoAimOpModeTest {
 
     private void arm() {
         op.start(); op.loop();
-        clearInvocations(turret, drive, vision, aim, telemetry);
+        clearInvocations(turret, drive, aim, telemetry);
     }
 }

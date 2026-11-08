@@ -1,0 +1,102 @@
+Panels setup for 8103
+
+Install the full APK once after this migration:
+    python3 tools/deploy.py --full
+Then normal Sloth reloads can be used for code-only edits. Desktop validation
+builds the app; it does not install anything on the robot. A Sloth-only reload
+cannot remove Dashboard or add Panels' Limelight plugin to an installed APK.
+
+Connect to the robot's Wi-Fi and open:
+    Panels:        http://192.168.43.1:8001
+    Pedro AutoTune: http://192.168.43.1:10158
+Panels connects to its WebSocket service on port 8002 automatically. Replace the
+IP if this robot uses a different network address.
+
+Add Telemetry, Graph, Field, Configurables, Capture and Limelight widgets to a
+Panels layout. Normal NextFTC OpModes and the standalone turret, shooter,
+vision, Pinpoint and Brushland diagnostics share their telemetry with Driver
+Station and Panels. AutoTune retains its own procedure UI.
+
+Live settings
+
+Panels Configurables exposes all 14 tuning groups, including Launcher.big/small
+gains, AxonTurret, HiveAutoAim, HiveVisionConfig, HivePedroConfig, MarrowConfig,
+FieldMap and the diagnostic input settings. These are the same Java fields the
+controllers use. PID gains, targets and settings read by the control loop can
+be adjusted live. Settings already captured during INIT still require
+STOP/re-INIT; this includes hardware names and the vision/Marrow setup.
+Existing direction, geometry, travel, freshness and tuning gates remain active.
+Record the final tune in source; editing runtime values does not edit Java files.
+
+Useful graphs
+
+Shooter Tuning provides separate numeric series for each motor:
+    shooter.big.targetRpm / measuredRpm / referenceRpm / power
+    shooter.small.targetRpm / measuredRpm / referenceRpm / power
+    shooter.big.feedforwardVolts / feedbackVolts / outputLimited
+    shooter.small.feedforwardVolts / feedbackVolts / outputLimited
+Use the complete dotted key for each series, for example
+shooter.big.measuredRpm. See SHOOTER_TUNING.txt for measured pose setup and saves.
+
+Axon Turret Test provides turret.actualDeg, turret.goalDeg, turret.profileDeg,
+turret.actualDegPerSec, turret.profileDegPerSec and the existing power terms.
+
+Field view
+
+Run Field Map for a stationary diagnostic. In INIT, enter a measured starting
+pose under Configurables > FieldMap, wait for Pinpoint READY, then press gamepad
+1 A. After START, move the robot by hand. This diagnostic commands no driving.
+
+Panels uses its bundled BIOBUZZ image, rotated into the team's audience-bottom,
+red-left Pedro frame: bottom-left origin, inches, +X right, +Y away from the
+audience, heading zero right. Keep the incoming BIOBUZZ / Pedro preset; remove
+any saved manual coordinate overrides in the Field widget if necessary.
+
+Robot pose, heading and recent trail use native Panels Circle/Line shapes.
+Hive Marrow Test adds its purple route and configured obstacle; Shooter Tuning
+adds the selected CELL and saved shot markers. Pose resets clear the trail.
+Lost localization removes the robot and trail. No Dashboard drawing objects,
+JSON conversion bridge or Dashboard field schematic remain in TeamCode.
+
+The team publisher limits normal frames to 10 Hz. Faults, recovery and pose
+resets publish immediately, bypassing the native manager's second throttle.
+Status, field X/Y, heading and out-of-bounds warnings go through normal
+Telemetry every loop because the pinned drawable API has no text primitive.
+The field image does not supply a measured robot starting pose.
+
+Capture/replay
+
+Use the Capture widget to record and replay the normal Panels Telemetry and
+Field streams while debugging. Native plugin frames include the robot trail,
+routes and calibration markers. Capture requires operating the browser widget;
+it does not start recording automatically when the robot starts.
+
+Limelight
+
+Panels owns the single Limelight proxy. Add its Limelight widgets for camera
+video and the camera dashboard. The camera's web UI is also available through
+http://192.168.43.1:5801 while connected to robot Wi-Fi. Panels forwards ports
+5800 (video), 5801 (dashboard), 5805 (WebSocket) and 5807 (API) to the camera.
+These services only forward camera traffic; the existing SDK camera polling,
+pipeline selection, orientation updates and vision controls remain in TeamCode.
+
+FTC Dashboard/Slothboard is removed from the dependency graph and installed app
+build. Both Dashboard artifact groups are excluded to keep transitive copies
+out. Panels' Limelight proxy is included; its earlier exclusion is removed.
+
+Implementation
+
+This project uses com.bylazar.sloth:fullpanels:0.3.2+1.0.13, the published wrapper
+for Sloth/Load 0.3.2. RobotTelemetry uses Panels' native JoinedTelemetry and SDK
+wrapper. NextFTC registers the stable Panels backend and flushes it once per
+loop; standalone diagnostics retain their existing update() calls. The existing
+Ivy scheduler remains the only command scheduler.
+
+@Configurable exposes the tuning fields. Dashboard @Config annotations and
+imports are removed. Private pose-transfer state is excluded from Configurables.
+
+Verify after the full install: check telemetry during INIT, edit a tuning value,
+check a numeric graph, and confirm Field Map corners and heading directions.
+Open the Limelight widgets/dashboard, exercise STOP and switch diagnostics.
+Desktop tests cover published APIs, native drawing frames and transforms;
+browser/network/hardware behavior still needs this on-robot check.

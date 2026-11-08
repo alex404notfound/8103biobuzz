@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes.testing;
 import com.pedropathing.math.Pose;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import dev.nextftc.robot.opmode.NextTeleop;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 import org.firstinspires.ftc.teamcode.robot.RobotOpMode;
@@ -11,27 +12,29 @@ import org.firstinspires.ftc.teamcode.subsystems.HivePedroController;
 import org.firstinspires.ftc.teamcode.subsystems.HiveVisionConfig;
 
 /** Standalone drive practice; one Limelight owner, no launcher/intake/turret hardware. */
+@Disabled
 @NextTeleop(name = "Hive Pedro Test", group = "Diagnostics")
 public class HivePedroTest extends RobotOpMode {
     private Limelight3A camera;
     private HiveBallTracker tracker;
-    private HivePedroController approach;
+    protected HivePedroController approach;
     private int pipeline;
 
     public HivePedroTest(Robot robot) { super(robot); }
 
     @Override protected void onInit() {
         // DRIVE_ONLY creates the chassis; this test alone owns the detector camera/pipeline.
-        robot.drivetrain.setStartingPose(Pose.zero());
+        robot.drivetrain.setStartingPose(initialPose());
         pipeline = HiveVisionConfig.pipelineIndex;
-        tracker = new HiveBallTracker(pipeline);
-        approach = new HivePedroController(robot.drivetrain, tracker);
-        if (HiveVisionConfig.pollRateHz < 1 || HiveVisionConfig.pollRateHz > 250)
-            throw new IllegalArgumentException("Hive Vision pollRateHz must be 1..250");
-        camera = robot.hardwareMap.get(Limelight3A.class, HiveVisionConfig.hardwareName);
-        camera.setPollRateHz(HiveVisionConfig.pollRateHz);
-        if (!camera.pipelineSwitch(pipeline)) throw new IllegalStateException("Could not select Hive Vision pipeline " + pipeline);
-        camera.start();
+        tracker = HiveBallTracker.forFloorTargets(pipeline);
+        approach = createApproach(tracker);
+        camera = HiveVisionConfig.startCamera(robot.hardwareMap, pipeline);
+    }
+
+    protected Pose initialPose() { return Pose.zero(); }
+
+    protected HivePedroController createApproach(HiveBallTracker tracker) {
+        return new HivePedroController(robot.drivetrain, tracker);
     }
 
     @Override protected void onInitLoop() {
@@ -79,7 +82,10 @@ public class HivePedroTest extends RobotOpMode {
         HiveBallTracker.Detection target = tracker.getTarget();
         if (target != null && target.position != null) robot.telemetry.addData("Ball forward / left in",
                 "%.1f / %.1f", target.position.forwardInches, target.position.leftInches);
+        showPlannerTelemetry();
     }
+
+    protected void showPlannerTelemetry() { }
 
     @Override protected void onStop() {
         try { if (approach != null) approach.stop(); }

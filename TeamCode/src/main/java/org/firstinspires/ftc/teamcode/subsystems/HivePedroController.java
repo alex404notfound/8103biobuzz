@@ -6,6 +6,7 @@ import com.pedropathing.math.Pose;
 import com.pedropathing.math.Velocity;
 import com.pedropathing.paths.Path;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedroPathing.MarrowPlanner;
 
 import java.util.function.LongSupplier;
 
@@ -21,6 +22,7 @@ public final class HivePedroController {
     private final Drivetrain drive;
     private final HiveBallTracker tracker;
     private final LongSupplier clock;
+    private final MarrowPlanner planner;
     private final double approach, stopDistance, distanceTolerance, angleTolerance, forwardGain, turnGain;
     private final double maxPower, pathSpeed, acceleration, timeoutSeconds, maxTravel, maxTargetShift;
     private Command action, pathAction;
@@ -30,13 +32,23 @@ public final class HivePedroController {
     private long stationarySince = -1, lastStationarySample, startedAt, chosenTrack;
     private double originalPowerLimit, traveled, ballX, ballY;
     private Pose previousPose, plannedEnd;
+    private MarrowPlanner.Plan plannedRoute;
 
     public HivePedroController(Drivetrain drive, HiveBallTracker tracker) { this(drive, tracker, System::nanoTime); }
 
+    public HivePedroController(Drivetrain drive, HiveBallTracker tracker, MarrowPlanner planner) {
+        this(drive, tracker, System::nanoTime, java.util.Objects.requireNonNull(planner));
+    }
+
     HivePedroController(Drivetrain drive, HiveBallTracker tracker, LongSupplier clock) {
+        this(drive, tracker, clock, null);
+    }
+
+    HivePedroController(Drivetrain drive, HiveBallTracker tracker, LongSupplier clock, MarrowPlanner planner) {
         this.drive = drive;
         this.tracker = tracker;
         this.clock = clock;
+        this.planner = planner;
         approach = HivePedroConfig.approachDistanceInches;
         stopDistance = HivePedroConfig.stopDistanceInches;
         distanceTolerance = HivePedroConfig.distanceToleranceInches;
@@ -129,9 +141,33 @@ public final class HivePedroController {
         double range = Math.hypot(ballX - start.x(), ballY - start.y());
         double heading = start.heading() + wrap(Math.atan2(ballY - start.y(), ballX - start.x()) - start.heading());
         plannedEnd = new Pose(ballX - approach * Math.cos(heading), ballY - approach * Math.sin(heading), heading);
-        final Path path = range > approach + 4 ? line(start, plannedEnd).linear(start.heading(), heading).with(
+        plannedRoute = null;
+        Path travelPath = null;
+        if (planner != null) {
+            try {
+                planner.validatePose(start);
+                boolean travel = range > approach + 4;
+                validateChase(travel ? plannedEnd : start, ballX, ballY);
+                if (travel) {
+                    plannedRoute = planner.planTo(start, plannedEnd);
+                    if (plannedRoute.maximumLengthInches + approach - stopDistance > maxTravel)
+                        throw new IllegalArgumentException("Detour exceeds the approach travel budget");
+                    travelPath = plannedRoute.path;
+                }
+                // Planning is synchronous while stopped. A slow plan must not start on stale samples.
+                if (!drive.isLocalizationReady() || tracker.getTarget() == null)
+                    throw new IllegalArgumentException("Sensors expired while planning; release RT to reacquire");
+            } catch (IllegalArgumentException rejected) {
+                plannedRoute = null;
+                phase = Phase.ABORTED;
+                abort("Marrow rejected: " + rejected.getMessage());
+                drive.stop();
+                return;
+            }
+        } else if (range > approach + 4) travelPath = line(start, plannedEnd).linear(start.heading(), heading);
+        final Path path = travelPath == null ? null : travelPath.with(
                 Constants.foresightConfig.maxVelocityConstraint.at(pathSpeed),
-                Constants.foresightConfig.maxAccelerationConstraint.at(acceleration)) : null;
+                Constants.foresightConfig.maxAccelerationConstraint.at(acceleration));
         action = Command.build().requiring(drive)
                 .setStart(() -> {
                     originalPowerLimit = drive.getMotorPowerLimit();
@@ -139,7 +175,7 @@ public final class HivePedroController {
                     limitApplied = true;
                     if (path != null) {
                         phase = Phase.TRAVEL;
-                        status = "Pedro approach";
+                        status = planner == null ? "Pedro approach" : "Validated Marrow route through Pedro";
                         pathAction = drive.followPath(path);
                         pathAction.start();
                     } else enterChase();
@@ -206,7 +242,22 @@ public final class HivePedroController {
         if (Math.hypot(point[0] - ballX, point[1] - ballY) > maxTargetShift) {
             abort("Ball position shifted; release RT to reacquire"); return false;
         }
+        if (planner != null) {
+            try {
+                planner.validatePose(pose);
+                if (phase == Phase.CHASE) validateChase(pose, point[0], point[1]);
+            } catch (IllegalArgumentException rejected) {
+                abort("Marrow clearance lost: " + rejected.getMessage()); return false;
+            }
+        }
         return true;
+    }
+
+    private void validateChase(Pose from, double targetX, double targetY) {
+        double range = Math.hypot(targetX - from.x(), targetY - from.y());
+        double fraction = range <= stopDistance ? 0 : (range - stopDistance) / range;
+        planner.validateLine(from, new Pose(from.x() + fraction * (targetX - from.x()),
+                from.y() + fraction * (targetY - from.y()), from.heading()));
     }
 
     public void abort(String reason) {
@@ -240,6 +291,7 @@ public final class HivePedroController {
     public Phase getPhase() { return phase; }
     public String getStatus() { return status; }
     public Pose getPlannedEnd() { return plannedEnd; }
+    public MarrowPlanner.Plan getPlannedRoute() { return plannedRoute; }
     public double getTraveledInches() { return traveled; }
 
     private static double[] fieldPoint(Pose pose, HiveBallTracker.Detection target) {

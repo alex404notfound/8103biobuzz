@@ -1,0 +1,94 @@
+Marrow integration (1.2.1)
+
+Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
+
+TeamCode includes com.skeletonarmyftc.marrow:core:1.2.1 alongside Pedro 3.0.1,
+NextFTC v2 and its existing Ivy scheduler. Weaver plans geometry; the existing
+Drivetrain.followPath command owns motor output. Marrow's optional bulk-caching
+hook remains at its default OFF; Robot retains manual caching. Use Marrow's Ivy
+command adapters with this project, not its legacy NextFTC 1 command adapters.
+
+First use: Diagnostics > Hive Marrow Test
+
+This is the existing held single-ball camera approach with Weaver detours, field
+bounds, configured keep-outs and a purple route preview in Panels's Field
+widget. Hive Pedro Test still uses its original straight path and local frame.
+The moving test uses one confirmed target. It does not run an intake, claim a
+pickup, or autonomously sweep through multiple camera detections.
+
+Setup, then re-INIT:
+
+1. Finish Pedro AutoTune/Foresight and camera floor-position calibration. The
+   Constants.foresightTuned and HiveVisionConfig.geometryVerified gates remain.
+   Keep the camera rigidly fixed at its measured yaw/pitch for this test.
+2. In Panels > Configurables > MarrowConfig, enter robotLengthInches (forward dimension),
+   robotWidthInches (sideways dimension), clearanceInches, and the measured
+   startX/startY/startHeadingDegrees. Footprint must cover deployed mechanisms.
+   Coordinates are inches: bottom-left origin, +X right, +Y away from audience;
+   0 degrees faces right. These values are separate from FieldMap's edit fields.
+3. Add only measured obstacles. The optional obstacleEnabled circle uses
+   obstacleX/obstacleY/obstacleRadiusInches in that same field frame. It is a
+   practice keep-out, not a surveyed outline of the moving BIOBUZZ HIVE. The
+   default map has field bounds only and does not detect obstacles or opponents.
+   Code can supply PolygonZone, CircleZone or CompositeZone maps to MarrowPlanner.
+4. Set MarrowConfig.geometryAndMapVerified=true after checking the dimensions,
+   starting pose and map against the practice setup. Unverified setup refuses
+   INIT. Stop and re-INIT after changing settings or physically moving the start.
+5. Install a full APK with the normal project installer after this dependency
+   change. A Sloth-only reload cannot add Marrow/Jackson to the installed app.
+
+Keep still in INIT; X recalibrates Pinpoint while preserving the field pose.
+After START, release RT and center the sticks, then hold RT for one approach.
+Release RT, press X, move either stick, or press Driver Station STOP to stop.
+D-pad left/up/down selects yellow/red/blue as in Hive Pedro Test. An abort or
+completed attempt requires releasing RT before another attempt can start.
+Panels/MarrowConfig edits apply on re-INIT, not during an attempt.
+
+What is checked:
+
+- Weaver 1.2.1 can return its original, colliding curve when avoidance fails.
+  MarrowPlanner independently validates every returned curve before following.
+- Clearance uses the robot's half-diagonal plus the configured margin, covering
+  every heading. Samples are at most 0.5 inches apart by a Bezier derivative
+  bound, with extra inflation covering the intervals. Tight passages may be
+  rejected conservatively. This is a geometric check, not a guarantee against
+  localization/tracking error or an obstacle missing from the map.
+- Go-to-pose paths apply explicit Pedro heading interpolation to fix Weaver's
+  destination-only heading loss. No direct follower calls bypass the drivetrain.
+- The final camera approach is checked against the same map before acquisition
+  and each active loop. A nearby ball cannot skip the keep-out checks. Detours
+  must fit the existing total travel budget, including the final approach.
+- Planning runs once while stopped; expired camera/localization samples prevent
+  starting the result. Existing trigger, same-target, freshness, localization,
+  timeout, power, drive-ownership and cleanup behavior remains in effect. Losing
+  sight of the ball during a detour stops the attempt instead of driving blind.
+
+Reusable API:
+
+MarrowPlanner.planTo(startPose, destinationPose) returns a checked Plan with a
+Pedro Path, preview points and a conservative length upper bound. Apply the
+desired Pedro velocity/acceleration constraints and run it through
+robot.drivetrain.followPath(plan.path) inside an owning command.
+
+MarrowPlanner.planTargets(startPose, confirmedFieldPoints, maximumVisits,
+effectiveIntakeWidthInches) supports up to six supplied targets, chooses a
+bounded set/order and reports planned/skipped targets. Use a conservative
+effective intake width. The caller must provide confirmed field positions and
+own intake actions, actual pickup confirmation, freshness and cancellation.
+Do not repeatedly replan or retry a failed drive command while a trigger is held.
+
+Verification:
+
+python3 tools/run_gradle.py :TeamCode:testDebugUnitTest :TeamCode:assembleDebug :TeamCode:assembleSloth
+
+The regression tests use published Weaver/Pedro code for unreachable paths,
+detours, final headings, wall clearance, thin keep-outs, target selection and
+camera-stage interlocks; lifecycle tests use the actual NextFTC hooks.
+Verified locally: 418 Java tests passed with no failures or skips; assembleDebug
+and assembleSloth passed, including the duplicate-class check. Gradle resolves
+Marrow 1.2.1 and its three Jackson dependencies at 2.10.0 without extra overrides.
+No robot installation or physical driving test was performed. Desktop builds
+do not validate camera accuracy or driving on a Control Hub.
+
+Upstream docs: https://marrow.skeletonarmyftc.com/automations/weaver
+Release: https://github.com/Skeleton-Army/Marrow/releases/tag/1.2.1

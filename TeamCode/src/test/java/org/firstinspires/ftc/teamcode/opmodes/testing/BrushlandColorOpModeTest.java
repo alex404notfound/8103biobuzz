@@ -28,7 +28,9 @@ public class BrushlandColorOpModeTest {
         when(controlHub.getBulkCachingMode()).thenReturn(LynxModule.BulkCachingMode.AUTO);
         when(expansionHub.getBulkCachingMode()).thenReturn(LynxModule.BulkCachingMode.OFF);
         BrushlandColorSensor sensor = new BrushlandColorSensor(pin0, pin1, 40, now::get);
-        op = new BrushlandColorTest(sensor, Arrays.asList(controlHub, expansionHub), telemetry, now::get);
+        op = new BrushlandColorTest(sensor, Arrays.asList(controlHub, expansionHub), telemetry, now::get) {
+            @Override protected Telemetry withBrowserTelemetry(Telemetry driverTelemetry) { return driverTelemetry; }
+        };
         op.gamepad1 = mock(Gamepad.class);
         op.init();
     }

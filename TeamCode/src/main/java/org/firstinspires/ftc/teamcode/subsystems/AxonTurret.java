@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.AnalogInput;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -9,20 +9,22 @@ import org.firstinspires.ftc.teamcode.math.ContinuousAngleTracker;
 import org.firstinspires.ftc.teamcode.math.TurretMotionProfile;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /** CR-mode Axon plus analog shaft feedback. Call periodic every loop, including INIT.
  * Position is relative to an explicitly established zero, never a retained multi-turn absolute pose.
  * See docs/AXON_TURRET_TEST.md and the RTPAxon reference linked there.
  */
-@Config
+@Configurable
 public class AxonTurret {
-    // Dashboard writes on another thread; volatile keeps edits visible to the control loop.
+    // Panels writes on another thread; volatile keeps edits visible to the control loop.
     public static volatile String servoName = "turret", encoderName = "turretEncoder";
+    public static volatile GearPreset gearPreset = GearPreset.CUSTOM; // Selected with the hardware names at INIT.
     // Sensor full-scale, NOT AnalogInput.getMaxVoltage() (the Hub input range may differ).
     public static volatile double encoderMinVolts = 0, encoderMaxVolts = 3.3;
     public static volatile double encoderSign = 1, servoSign = 1;
-    public static volatile double servoTurnsPerTurretTurn = 0; // Measure; 20T driving 100T means 5.
+    public static volatile double servoTurnsPerTurretTurn = 0; // Measured ratio for CUSTOM.
     public static volatile double maximumServoDegreesPerSecond = 0; // Datasheet speed with margin; required.
     public static volatile double maximumSampleGapMs = 100;
     public static volatile boolean directionsVerified = false, limitTravel = true;
@@ -39,12 +41,28 @@ public class AxonTurret {
     public static volatile double noMotionTimeoutMs = 750, noMotionMinimumServoDegrees = 2;
     public static volatile double noMotionPowerThreshold = 0.05;
 
+    public enum GearPreset {
+        BIG(1.0 / (60.0 / 24 * 36 / 83)),
+        SMALL(1.0 / (60.0 / 24 * 34 / 78)),
+        CUSTOM(Double.NaN);
+
+        private final double servoTurnsPerTurretTurn;
+
+        GearPreset(double servoTurnsPerTurretTurn) {
+            this.servoTurnsPerTurretTurn = servoTurnsPerTurretTurn;
+        }
+
+        public double servoTurnsPerTurretTurn() { return servoTurnsPerTurretTurn; }
+    }
+
     public enum Mode { OFF, MANUAL, POSITION, FAULT }
     private final CRServo servo;
     private final AnalogInput encoder;
     private final LongSupplier clock;
+    private final GearPreset selectedGearPreset;
     private ContinuousAngleTracker tracker;
     private double[] calibration;
+    private double sampledGearRatio = Double.NaN;
     private boolean enabled, closed, referenced, zeroRequested, sensorValid;
     private Mode mode = Mode.OFF;
     private String status = "INIT: encoder readout only";
@@ -69,6 +87,7 @@ public class AxonTurret {
         this.servo = servo;
         this.encoder = encoder;
         this.clock = clock;
+        selectedGearPreset = Objects.requireNonNull(gearPreset, "AxonTurret.gearPreset");
         servo.setPower(0);
         servo.setDirection(DcMotorSimple.Direction.FORWARD); // Signs are explicit in our calibration.
     }
@@ -173,8 +192,10 @@ public class AxonTurret {
     }
 
     private void sample() {
+        sampledGearRatio = selectedGearPreset == GearPreset.CUSTOM
+                ? servoTurnsPerTurretTurn : selectedGearPreset.servoTurnsPerTurretTurn;
         double[] current = { encoderMinVolts, encoderMaxVolts, encoderSign, servoSign,
-                servoTurnsPerTurretTurn, maximumServoDegreesPerSecond, maximumSampleGapMs,
+                sampledGearRatio, maximumServoDegreesPerSecond, maximumSampleGapMs,
                 directionsVerified ? 1 : 0, limitTravel ? 1 : 0, minDegrees, maxDegrees };
         if (!Arrays.equals(current, calibration)) {
             // Even zero output at a travel limit is an armed motion request. A calibration edit
@@ -265,7 +286,7 @@ public class AxonTurret {
             return true;
         }
         if (!positive(maxProfileVelocityDegreesPerSecond) || !positive(maxProfileAccelerationDegreesPerSecondSquared)
-                || maxProfileVelocityDegreesPerSecond > maximumServoDegreesPerSecond / servoTurnsPerTurretTurn) {
+                || maxProfileVelocityDegreesPerSecond > maximumServoDegreesPerSecond / sampledGearRatio) {
             fault("Invalid profile constraints or profile speed exceeds configured shaft speed / gearing"); return false;
         }
         boolean replan = profile == null || profileGoal != targetDegrees
@@ -321,7 +342,7 @@ public class AxonTurret {
     }
 
     private boolean positionConfigurationValid() {
-        return Double.isFinite(servoTurnsPerTurretTurn) && servoTurnsPerTurretTurn > 0
+        return positive(sampledGearRatio)
                 && directionsVerified && Double.isFinite(settledVelocityDegreesPerSecond) && settledVelocityDegreesPerSecond > 0
                 && (!limitTravel || (Double.isFinite(minDegrees) && Double.isFinite(maxDegrees)
                 && minDegrees < maxDegrees && minDegrees <= 0 && maxDegrees >= 0));
@@ -366,10 +387,12 @@ public class AxonTurret {
     public double getVoltage() { return volts; }
     public double getWrappedDegrees() { return wrappedDegrees; }
     public double getOutput() { return output; }
+    public GearPreset getGearPreset() { return selectedGearPreset; }
+    public double getServoTurnsPerTurretTurn() { return sampledGearRatio; }
     public double getShaftDegrees() { return sensorValid ? tracker.getDegrees() * encoderSign : Double.NaN; }
     public boolean hasReference() { return referenced; }
-    public double getPositionDegrees() { return referenced ? (tracker.getDegrees() - zeroShaftDegrees) * encoderSign / servoTurnsPerTurretTurn : Double.NaN; }
-    public double getVelocityDegreesPerSecond() { return referenced ? tracker.getVelocityDegreesPerSecond() * encoderSign / servoTurnsPerTurretTurn : Double.NaN; }
+    public double getPositionDegrees() { return referenced ? (tracker.getDegrees() - zeroShaftDegrees) * encoderSign / sampledGearRatio : Double.NaN; }
+    public double getVelocityDegreesPerSecond() { return referenced ? tracker.getVelocityDegreesPerSecond() * encoderSign / sampledGearRatio : Double.NaN; }
     public double getErrorDegrees() { return targetDegrees - getPositionDegrees(); }
     public double getProfilePositionDegrees() { return desiredPosition; }
     public double getProfileVelocityDegreesPerSecond() { return desiredVelocity; }

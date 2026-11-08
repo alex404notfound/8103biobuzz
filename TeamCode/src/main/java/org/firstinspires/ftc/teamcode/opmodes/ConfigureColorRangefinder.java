@@ -1,14 +1,17 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import com.acmerobotics.dashboard.config.Config;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.hardware.rev.RevColorSensorV3;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.I2cDeviceSynchSimple;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 
 
 /** One-time sensor programming. See docs/BRUSHLAND_COLOR_TEST.md before rewiring. */
-@Config
+@Configurable
+@Disabled
 @TeleOp(name = "Brushland Configure", group = "Prototyping")
 public class ConfigureColorRangefinder extends LinearOpMode {
     public enum OutputMode { DIGITAL_BIOBUZZ, ANALOG_HUE_CALIBRATION }
@@ -23,6 +26,7 @@ public class ConfigureColorRangefinder extends LinearOpMode {
 
     @Override
     public void runOpMode() throws InterruptedException {
+        telemetry = RobotTelemetry.forOpMode(telemetry);
         ColorRangefinder crf = new ColorRangefinder(hardwareMap.get(RevColorSensorV3.class, "Color"));
         telemetry.setMsTransmissionInterval(100);
         while (!isStarted() && !isStopRequested()) {

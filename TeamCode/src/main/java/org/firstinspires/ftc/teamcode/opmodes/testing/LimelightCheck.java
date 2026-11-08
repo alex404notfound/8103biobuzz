@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import dev.nextftc.robot.opmode.NextTeleop;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 import org.firstinspires.ftc.teamcode.robot.RobotOpMode;
@@ -7,6 +8,7 @@ import org.firstinspires.ftc.teamcode.robot.RobotOpMode;
 import static com.pedropathing.ivy.commands.Commands.instant;
 
 /** Stationary diagnostic for camera/pipeline/frame setup, with explicit correction on Circle. */
+@Disabled
 @NextTeleop(name = "Limelight Check", group = "Diagnostics")
 public class LimelightCheck extends RobotOpMode {
     public LimelightCheck(Robot robot) { super(robot); }

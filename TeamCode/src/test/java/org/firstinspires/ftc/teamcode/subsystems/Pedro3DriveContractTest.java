@@ -40,7 +40,10 @@ public class Pedro3DriveContractTest {
         Scheduler.reset();
         savedTuned = Constants.foresightTuned;
         Constants.foresightTuned = true;
-        String[] names = {"frontLeft", "frontRight", "backLeft", "backRight"};
+        String[] names = {
+                Constants.drivetrainConfig.frontLeftName.get(), Constants.drivetrainConfig.frontRightName.get(),
+                Constants.drivetrainConfig.backLeftName.get(), Constants.drivetrainConfig.backRightName.get()
+        };
         for (int i = 0; i < names.length; i++) {
             final int index = i;
             DcMotorEx motor = mock(DcMotorEx.class);
@@ -66,6 +69,15 @@ public class Pedro3DriveContractTest {
         assertEquals(0.6, powers[0], 0);
         command.cancel();
         assertArrayEquals(new double[4], powers, 0);
+        assertTrue(follower.idle());
+    }
+
+    @Test public void disconnectedFirstMotorCannotLeaveTheOtherWheelsPoweredOnStop() {
+        drive.driveRobotRelative(.6, 0, 0);
+        DcMotorEx first = map.get(DcMotorEx.class, Constants.drivetrainConfig.frontLeftName.get());
+        doThrow(new IllegalStateException("Front left disconnected")).when(first).setPower(0);
+        assertThrows(IllegalStateException.class, drive::stop);
+        for (int i = 1; i < powers.length; i++) assertEquals("Remaining wheel " + i, 0, powers[i], 0);
         assertTrue(follower.idle());
     }
 

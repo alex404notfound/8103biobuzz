@@ -36,6 +36,7 @@ public class AxonTurretTest {
 
     private static void defaults() {
         AxonTurret.servoName = "turret"; AxonTurret.encoderName = "turretEncoder";
+        AxonTurret.gearPreset = AxonTurret.GearPreset.CUSTOM;
         AxonTurret.encoderMinVolts = 0; AxonTurret.encoderMaxVolts = 3.3;
         AxonTurret.encoderSign = AxonTurret.servoSign = 1;
         AxonTurret.servoTurnsPerTurretTurn = 5;
@@ -106,6 +107,27 @@ public class AxonTurretTest {
         assertEquals(20, turret.getVelocityDegreesPerSecond(), 1e-8);
         turret.requestPosition(10); step(20, 359);
         assertTrue(turret.getOutput() < 0); // Logical positive turret motion, reversed physical PWM.
+    }
+
+    @Test public void eachGearPresetReachesTheTurretGoalAtTheCorrectShaftAngle() {
+        checkGearPreset(AxonTurret.GearPreset.BIG, 83);
+        checkGearPreset(AxonTurret.GearPreset.SMALL, 90 * 78.0 / 85);
+    }
+
+    private void checkGearPreset(AxonTurret.GearPreset preset, double shaftTravel) {
+        AxonTurret.gearPreset = preset;
+        turret = new AxonTurret(servo, encoder, now::get);
+        rawDegrees = 180;
+        zero();
+        turret.requestPosition(90);
+        step(100, 180);
+        assertTrue(turret.getOutput() > 0);
+        step(100, 180 + shaftTravel);
+        assertEquals(90, turret.getPositionDegrees(), 1e-8);
+        assertEquals(900, turret.getVelocityDegreesPerSecond(), 1e-8);
+        step(100, 180 + shaftTravel);
+        assertEquals(0, turret.getOutput(), 0);
+        turret.stop();
     }
 
     @Test public void positionRequestUsesUnwrappedTurretErrorInsteadOfShortestAngle() {

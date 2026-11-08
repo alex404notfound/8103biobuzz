@@ -29,7 +29,7 @@ public final class HiveBallTracker {
         public final int classId;
         public final String className;
         public final double txDegrees, tyDegrees, rawConfidence, confidence, area;
-        /** Empty when eligible for tracking. */
+        /** Empty when optical validation passes; floor tracking also requires a position. */
         public final String rejection;
         /** Null until calibrated, or when the ray misses the configured floor working area. */
         public final HiveBallGeometry.Position position;
@@ -63,6 +63,7 @@ public final class HiveBallTracker {
     private final int pipeline, requiredFrames;
     private final double minimumConfidence, confidenceDivisor, maximumAgeMs, associationGate;
     private final HiveBallGeometry geometry;
+    private final boolean requireFloorPosition;
     private final VisionResultGate gate;
     private final LongSupplier clock;
     private Filter filter = Filter.YELLOW;
@@ -75,9 +76,19 @@ public final class HiveBallTracker {
 
     public HiveBallTracker(int pipeline) { this(pipeline, System::nanoTime); }
 
+    /** Moving approaches must acquire and retain only calibrated, in-range floor targets. */
+    public static HiveBallTracker forFloorTargets(int pipeline) {
+        return new HiveBallTracker(pipeline, true, System::nanoTime);
+    }
+
     HiveBallTracker(int pipeline, LongSupplier clock) {
+        this(pipeline, false, clock);
+    }
+
+    HiveBallTracker(int pipeline, boolean requireFloorPosition, LongSupplier clock) {
         this.pipeline = pipeline;
         this.clock = clock;
+        this.requireFloorPosition = requireFloorPosition;
         minimumConfidence = HiveVisionConfig.minimumConfidence;
         confidenceDivisor = HiveVisionConfig.confidenceIsPercent ? 100 : 1;
         maximumAgeMs = HiveVisionConfig.maximumFrameAgeMs;
@@ -128,6 +139,8 @@ public final class HiveBallTracker {
         double smallestJump = Double.POSITIVE_INFINITY;
         for (Detection detection : rows) {
             if (!detection.rejection.isEmpty()) continue;
+            // A visually valid ball outside the calibrated area must not acquire or retain a drive target.
+            if (requireFloorPosition && detection.position == null) continue;
             // Hive Vision's nearest-first heuristic: lowest in the image for a level-roll floor camera.
             if (lowest == null || detection.tyDegrees < lowest.tyDegrees) lowest = detection;
             if (candidate != null && detection.classId == candidate.classId) {

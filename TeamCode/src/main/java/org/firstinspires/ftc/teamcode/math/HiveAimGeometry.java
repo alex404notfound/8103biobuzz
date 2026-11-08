@@ -1,14 +1,9 @@
 package org.firstinspires.ftc.teamcode.math;
 
-/**
- * Geometry for individual BIOBUZZ tags, independent of a fixed AprilTag field map.
- * Distances are inches and angles are degrees. Camera optical axes are right/down/forward;
- * turret axes are forward/left/up. SDK12 stores optical rx/ry/rz as roll/pitch/yaw unchanged.
+/** Horizontal turret aiming geometry. Distances are inches and angles are degrees.
+ * Chassis/turret axes are forward/left/up; field axes follow FieldConstants.
  */
 public final class HiveAimGeometry {
-    // FIRST BIOBUZZ manual TU01, Figure 9-15: viewed with the cluster sticker upright.
-    private static final double[] TAG_ROW_OFFSETS_INCHES = {-6.5, -2.75, 2.75, 6.5};
-
     private HiveAimGeometry() { }
 
     public static final class Vec {
@@ -38,39 +33,6 @@ public final class HiveAimGeometry {
         double x1 = v.x, y1 = cr * v.y - sr * v.z, z1 = sr * v.y + cr * v.z;
         double x2 = cp * x1 + sp * z1, y2 = y1, z2 = -sp * x1 + cp * z1;
         return new Vec(cy * x2 - sy * y2, sy * x2 + cy * y2, z2);
-    }
-
-    /**
-     * Converts an optical vector to turret forward/left/up, then applies camera mounting rotation.
-     * Positive mounting pitch tilts camera forward DOWN; positive yaw turns it left.
-     * For points, add the measured camera translation separately after this rotation.
-     */
-    public static Vec opticalToTurret(Vec cameraVector, double rollDeg,
-                                      double pitchDeg, double yawDeg) {
-        return rotate(new Vec(cameraVector.z, -cameraVector.x, -cameraVector.y),
-                rollDeg, pitchDeg, yawDeg);
-    }
-
-    /**
-     * Returns the tag-row center in camera optical space, not the opening center.
-     * Input translation must already be converted from SDK meters to inches. The measured
-     * opening offset must subsequently be transformed and added in the same tag coordinate frame.
-     */
-    public static Vec tagCenterFromTag(Vec opticalPosition, double rx, double ry,
-                                       double rz, int tagId) {
-        if (tagId < 30 || tagId > 45) throw new IllegalArgumentException("Expected a BIOBUZZ tag ID 30-45");
-        Vec tagOffset = new Vec(TAG_ROW_OFFSETS_INCHES[(tagId - 30) % 4], 0, 0);
-        return opticalPosition.minus(rotate(tagOffset, rx, ry, rz));
-    }
-
-    /** Unit vector toward the printed tag's top edge, in camera optical space. */
-    public static Vec tagUp(double rx, double ry, double rz) {
-        return rotate(new Vec(0, -1, 0), rx, ry, rz);
-    }
-
-    /** Unit normal to the tag plane, in camera optical space; do not assume its sign is gravity-up. */
-    public static Vec tagNormal(double rx, double ry, double rz) {
-        return rotate(new Vec(0, 0, 1), rx, ry, rz);
     }
 
     /**

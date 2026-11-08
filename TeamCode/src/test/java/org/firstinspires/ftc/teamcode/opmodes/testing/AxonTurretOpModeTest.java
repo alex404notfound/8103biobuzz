@@ -54,7 +54,7 @@ public class AxonTurretOpModeTest {
         verify(turret).requestPosition(0);
     }
 
-    @Test public void dashboardTargetEditsApplyWhileTheSameTriggerRemainsHeld() {
+    @Test public void panelsTargetEditsApplyWhileTheSameTriggerRemainsHeld() {
         arm();
         op.gamepad1.right_trigger = 1;
         AxonTurretTest.targetDegrees = 10;

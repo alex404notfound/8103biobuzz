@@ -1,6 +1,8 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import com.acmerobotics.dashboard.config.Config;
+import com.bylazar.field.Canvas;
+import com.bylazar.configurables.annotations.Configurable;
+import com.bylazar.configurables.annotations.IgnoreConfigurable;
 import com.pedropathing.controllers.PIDController;
 import com.pedropathing.drivetrain.DrivePowers;
 import com.pedropathing.follower.Follower;
@@ -10,23 +12,25 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.behaviors.EndCondition;
 import dev.nextftc.robot.Mechanism;
 import com.pedropathing.paths.Path;
-import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import java.util.function.LongSupplier;
+import java.util.function.Consumer;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.hardware.MotorSafety;
 import org.firstinspires.ftc.teamcode.pedroPathing.GuardedMecanum;
 import org.firstinspires.ftc.teamcode.robot.Alliance;
-import static com.pedropathing.ivy.pedro.PedroCommands.follow;
+import org.firstinspires.ftc.teamcode.telemetry.FieldMapTelemetry;
+import org.firstinspires.ftc.teamcode.telemetry.PanelsFieldTelemetry;
 
-@Config
+@Configurable
 public class Drivetrain implements Mechanism {
-    // Optional TeleOp heading hold gains; tune on the actual robot in Dashboard.
+    // Optional TeleOp heading hold gains; tune on the actual robot in Panels.
     public static double headingP = 0, headingI = 0, headingD = 0;
-    private static Pose poseTransfer = Pose.zero();
+    @IgnoreConfigurable private static Pose poseTransfer = Pose.zero();
     private final DcMotorEx frontLeft;
     private final DcMotorEx frontRight;
     private final DcMotorEx backLeft;
@@ -35,6 +39,7 @@ public class Drivetrain implements Mechanism {
     private final Telemetry telemetry;
     private final GoBildaPinpointDriver pinpoint;
     private final LongSupplier clock;
+    private final FieldMapTelemetry fieldMap;
     private boolean localizationSampleSeen;
     private boolean followingControlEnabled;
     private long lastLocalizationSample;
@@ -48,7 +53,8 @@ public class Drivetrain implements Mechanism {
     private double headingTargetRadians = 0;
 
     public Drivetrain(HardwareMap hardwareMap, Telemetry telemetry) {
-        this(Constants.createGuardedFollower(hardwareMap), hardwareMap, telemetry);
+        this(Constants.createGuardedFollower(hardwareMap), hardwareMap, telemetry,
+                System::nanoTime, PanelsFieldTelemetry::send);
     }
 
     Drivetrain(Follower follower, HardwareMap hardwareMap, Telemetry telemetry) {
@@ -56,8 +62,14 @@ public class Drivetrain implements Mechanism {
     }
 
     Drivetrain(Follower follower, HardwareMap hardwareMap, Telemetry telemetry, LongSupplier clock) {
+        this(follower, hardwareMap, telemetry, clock, frame -> { });
+    }
+
+    Drivetrain(Follower follower, HardwareMap hardwareMap, Telemetry telemetry, LongSupplier clock,
+               Consumer<Canvas> fieldFrames) {
         this.follower = follower;
         this.clock = clock;
+        this.fieldMap = new FieldMapTelemetry(telemetry, fieldFrames, clock);
         pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConfig.name.get());
         frontLeft = hardwareMap.get(DcMotorEx.class, Constants.drivetrainConfig.frontLeftName.get());
         frontRight = hardwareMap.get(DcMotorEx.class, Constants.drivetrainConfig.frontRightName.get());
@@ -126,6 +138,8 @@ public class Drivetrain implements Mechanism {
         return follower.pose();
     }
 
+    public void setFieldOverlay(Consumer<Canvas> overlay) { fieldMap.setAdditionalOverlay(overlay); }
+
     /** Linear robot-relative output through Pedro. Forward/left/CCW are positive; caller owns this mechanism. */
     public void driveRobotRelative(double forward, double left, double counterclockwise) {
         if (!Double.isFinite(forward) || !Double.isFinite(left) || !Double.isFinite(counterclockwise)
@@ -146,15 +160,6 @@ public class Drivetrain implements Mechanism {
         return (GuardedMecanum) follower.drivetrain;
     }
 
-    /** Linear, clockwise-positive turn for a camera controller; never squares its output. */
-    public void turnInPlace(double clockwisePower) {
-        if (!Double.isFinite(clockwisePower) || !isLocalizationReady()) { stop(); return; }
-        if (followingControlEnabled) stopFollowing();
-        unlockHeading();
-        double turn = Math.max(-1, Math.min(1, clockwisePower));
-        follower.drivetrain.drive(new DrivePowers(0, 0, -turn), true);
-    }
-
     /** Robot velocity in field inches/second and radians/second. */
     public Velocity getVelocity() { return follower.velocity(); }
 
@@ -164,10 +169,11 @@ public class Drivetrain implements Mechanism {
 
     public void setPose(Pose pose) {
         follower.setPose(pose);
+        fieldMap.resetTrail();
     }
 
     public void setStartingPose(Pose pose) {
-        follower.setPose(pose);
+        setPose(pose);
     }
 
     public void usePreviousStartingPose() {
@@ -177,8 +183,9 @@ public class Drivetrain implements Mechanism {
     public boolean isPathFollowingConfigured() { return Constants.foresightTuned; }
 
     public Command followPath(Path path) {
-        // Ivy's Pedro factory starts/tests the follower, but supplies no ownership or cleanup.
-        return follow(follower, path)
+        // Own the v3 lifecycle directly: the stock Ivy adapter uses parametric completion
+        // and supplies neither mechanism ownership nor cancellation cleanup.
+        return Command.build()
                 .requiring(this)
                 .setStart(() -> {
                     if (!isPathFollowingConfigured()) {
@@ -223,6 +230,7 @@ public class Drivetrain implements Mechanism {
         telemetry.addData("Drivetrain Heading", Math.toDegrees(follower.pose().heading()));
         telemetry.addData("Drivetrain Heading Locked", lockHeading);
         telemetry.addData("Drivetrain Heading Target", Math.toDegrees(headingTargetRadians));
+        fieldMap.update(follower.pose(), isLocalizationReady(), getLocalizationStatus());
     }
 
     /** Readiness always refers to a recent completed localization update. */
@@ -251,17 +259,13 @@ public class Drivetrain implements Mechanism {
     /** Cancels Pedro's active path or end hold without changing localization. */
     public void stopFollowing() {
         followingControlEnabled = false;
-        follower.stop();
-        // Pedro 3 stop() changes the mode; motor zeroing otherwise waits for update().
-        follower.drivetrain.stop();
-        frontLeft.setPower(0);
-        frontRight.setPower(0);
-        backLeft.setPower(0);
-        backRight.setPower(0);
-        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        try {
+            try { follower.stop(); }
+            finally { follower.drivetrain.stop(); }
+        } finally {
+            // Pedro changes mode before output, and its cached writes can skip small zeros.
+            MotorSafety.stopAndBrake(frontLeft, frontRight, backLeft, backRight);
+        }
     }
 
     /** Vision corrects translation; MegaTag2 yaw is not an independent heading measurement. */

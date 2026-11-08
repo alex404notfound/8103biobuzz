@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes.teleop;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import dev.nextftc.robot.opmode.NextTeleop;
 
 import org.firstinspires.ftc.teamcode.robot.Alliance;
@@ -16,6 +17,7 @@ import static com.pedropathing.ivy.commands.Commands.instant;
  * Register CommandGamepad bindings in onStart(), after INIT calibration is done.
  * gamepad1 = driving + primary mechanism triggers; gamepad2 = operator overrides.
  */
+@Disabled
 @NextTeleop(name = "Skeleton TeleOp", group = "Competition")
 public class SkeletonTeleOp extends RobotOpMode {
 
@@ -31,7 +33,7 @@ public class SkeletonTeleOp extends RobotOpMode {
         if (robot.exampleSubsystem != null) driver.triangle().onTrue(robot.exampleSubsystem.toggle());
         driver.square().onTrue(instant(() -> robot.drivetrain.lockHeading(
                 Alliance.current == Alliance.RED ? 90 : 270)).requiring(robot.drivetrain));
-        // Build on each press so live Dashboard permission changes are respected.
+        // Build on each press so live Panels permission changes are respected.
         if (robot.limelight != null) driver.circle().onTrue(instant(() -> robot.limelight.relocalize().schedule()));
         operator.leftBumper().onTrue(instant(() -> Alliance.current = Alliance.RED));
         operator.rightBumper().onTrue(instant(() -> Alliance.current = Alliance.BLUE));

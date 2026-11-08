@@ -1,0 +1,14 @@
+Hive Vision v2.0.0
+Release: https://github.com/hivevisionftc/Hive-Vision/releases/tag/v2.0.0
+Checksums and asset URLs: model-manifest.json
+
+The model runs on the Limelight 3A; an Android APK install does not update it.
+In the camera UI, select Neural Detector pipeline 1, upload both
+best_limelight3a_ssd_mobilenetv2_300x300_v2_int8_dets25.tflite and labels.txt,
+choose CPU and 300x300 input, start at 80% confidence, and save the pipeline.
+The Java filter also starts at 0.80. Tune both thresholds with real field lighting.
+
+Class order: 0 yellow_pollen, 1 red_nectar, 2 blue_nectar. Up to 25 detections.
+Run Hive Vision Test to check classes, confidence, latency and label ordering.
+Run Hive Pedro Test only after measuring the camera geometry and tuning drive.
+HIVE turret aiming is separate and uses Pinpoint field pose, without a camera.

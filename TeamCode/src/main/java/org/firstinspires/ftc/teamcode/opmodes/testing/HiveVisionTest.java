@@ -1,9 +1,8 @@
 package org.firstinspires.ftc.teamcode.opmodes.testing;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -11,8 +10,10 @@ import org.firstinspires.ftc.teamcode.subsystems.HiveBallTracker;
 import org.firstinspires.ftc.teamcode.subsystems.HiveBallTracker.Detection;
 import org.firstinspires.ftc.teamcode.subsystems.HiveBallTracker.Filter;
 import org.firstinspires.ftc.teamcode.subsystems.HiveVisionConfig;
+import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 
 /** Camera-only bench test. Acquires no motors, servos, drivetrain, or odometry hardware. */
+@Disabled
 @TeleOp(name = "Hive Vision Test", group = "Diagnostics")
 public class HiveVisionTest extends OpMode {
     private Limelight3A camera;
@@ -23,17 +24,11 @@ public class HiveVisionTest extends OpMode {
     @Override public void init() {
         stopped = false;
         try {
-            telemetry = withDashboard(telemetry);
+            telemetry = withBrowserTelemetry(telemetry);
             telemetry.setMsTransmissionInterval(100);
             pipeline = HiveVisionConfig.pipelineIndex;
             tracker = new HiveBallTracker(pipeline);
-            if (HiveVisionConfig.pollRateHz < 1 || HiveVisionConfig.pollRateHz > 250)
-                throw new IllegalArgumentException("Hive Vision pollRateHz must be 1..250");
-            camera = hardwareMap.get(Limelight3A.class, HiveVisionConfig.hardwareName);
-            camera.setPollRateHz(HiveVisionConfig.pollRateHz);
-            if (!camera.pipelineSwitch(pipeline))
-                throw new IllegalStateException("Could not request Hive Vision detector pipeline " + pipeline);
-            camera.start();
+            camera = HiveVisionConfig.startCamera(hardwareMap, pipeline);
             gamepad1.resetEdgeDetection();
         } catch (RuntimeException failure) {
             cleanupAfterFailure(failure);
@@ -41,8 +36,8 @@ public class HiveVisionTest extends OpMode {
         }
     }
 
-    protected Telemetry withDashboard(Telemetry driverTelemetry) {
-        return new MultipleTelemetry(driverTelemetry, FtcDashboard.getInstance().getTelemetry());
+    protected Telemetry withBrowserTelemetry(Telemetry driverTelemetry) {
+        return RobotTelemetry.forOpMode(driverTelemetry);
     }
 
     @Override public void init_loop() { sampleAndDisplay(); }
@@ -58,7 +53,7 @@ public class HiveVisionTest extends OpMode {
             if (gamepad1.xWasPressed()) tracker.reset();
             LLResult frame = camera.getLatestResult();
             tracker.update(frame);
-            telemetry.addLine("Stationary camera test. Dashboard: HiveVisionConfig; STOP/re-INIT applies settings.");
+            telemetry.addLine("Stationary camera test. Panels: HiveVisionConfig; STOP/re-INIT applies settings.");
             telemetry.addLine("D-pad: up red, down blue, left yellow, right all. X: reacquire on next frame.");
             telemetry.addData("Vision status", tracker.getStatus());
             telemetry.addData("Pipeline requested / received", pipeline + " / " + (frame == null ? "none" : frame.getPipelineIndex()));
