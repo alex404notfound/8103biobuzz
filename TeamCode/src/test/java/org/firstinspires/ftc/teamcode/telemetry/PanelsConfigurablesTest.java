@@ -48,16 +48,16 @@ public class PanelsConfigurablesTest {
     }
 
     @Test public void panelsEditsTheSameNestedShooterGainUsedByTheController() {
-        double before = Launcher.big.kP;
+        double before = Launcher.shooter.kP;
         try {
             Plugin.INSTANCE.scan(loader, Launcher.class);
-            GenericTypeJson big = GlobalConfigurables.INSTANCE.getJvmFields().get(loader).stream()
-                    .filter(field -> field.getName().equals("big")).findFirst().get().getToJsonType();
-            GenericTypeJson gain = big.getCustomValues().stream()
+            GenericTypeJson shooter = GlobalConfigurables.INSTANCE.getJvmFields().get(loader).stream()
+                    .filter(field -> field.getName().equals("shooter")).findFirst().get().getToJsonType();
+            GenericTypeJson gain = shooter.getCustomValues().stream()
                     .filter(field -> field.getFieldName().equals("kP")).findFirst().get();
             assertTrue(GlobalConfigurables.INSTANCE.getFieldsMap().get(gain.getId()).setValue("0.0042"));
-            assertEquals(.0042, Launcher.big.kP, 0);
-        } finally { Launcher.big.kP = before; }
+            assertEquals(.0042, Launcher.shooter.kP, 0);
+        } finally { Launcher.shooter.kP = before; }
     }
 
     @Test public void configurableFieldsAreReleasedWhenSlothUnloadsTheirClassloader() {

@@ -162,10 +162,10 @@ public class ShooterTuning extends OpMode {
             } else if (ball == null || cell == null) {
                 stopOutputs(); runStatus = "Select a ball and CELL";
             } else {
-                // A deliberate low-voltage check only powers the selected motor.
+                // A deliberate low-voltage check powers the single shooter.
                 if (gamepad1.left_bumper && !spinHeld()) {
                     launcher.requestMotorTest();
-                    runStatus = "Selected motor direction check";
+                    runStatus = "Shooter direction check";
                 } else if (spinHeld() && !gamepad1.left_bumper) {
                     double rpm = lookupMode ? lookup.rpm : launcher.getManualRpm();
                     if (!lookupMode || (tablesLoaded && fieldUsable() && lookup.usable)) {
@@ -248,7 +248,7 @@ public class ShooterTuning extends OpMode {
         }
         if (!spinHeld() || gamepad1.left_bumper || !launcher.isAtSpeed()
                 || launcher.getTargetRpm() != launcher.getManualRpm()) {
-            saveStatus = "Save refused: hold RT until the selected shooter is at the tuned RPM"; return;
+            saveStatus = "Save refused: hold RT until the shooter is at the tuned RPM"; return;
         }
         ShotTable.Point point;
         Map<Ball, ShotTable> next = new EnumMap<>(tables);

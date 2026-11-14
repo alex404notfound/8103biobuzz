@@ -2,19 +2,44 @@ SHOOTER TUNING — MOVE, TUNE, SAVE, LOOK UP
 
 Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
 
+CURRENT ROBOT: ONE WEDGE, ONE SHOOTER
+The two-hub configuration keeps the existing device names and ports:
+  Shooter:  smallShooter, Expansion Hub motor port 3, with its encoder.
+  Wedge:    frontWedge, Expansion Hub servo port 0.
+  Transfer: bigShooter, Control Hub motor port 2 (historical device name).
+The removed shooter was on Control Hub motor port 1, named transfer; that
+device and backWedge are removed from teamconfig8103.xml and the fixed-shot XML.
+Install the full APK to update bundled XML configurations, then select the
+updated configuration on the Driver Station or make the matching port edits
+in the active configuration. A code-only reload does not update XML resources.
+
+Fixed Shot TeleOp: GP1 sticks drive, left bumper toggles the single wedge,
+B toggles intake, Y toggles transfer, hold A to shoot, and X cancels.
+Set FixedShotTeleOp.wedge.stowedPosition/deployedPosition before INIT; the
+wedge does not move until both positions are valid and different.
+The right bumper has no wedge action. Automatic feeding waits until the
+shooter is within 300 RPM of its target. The default target is 3000 RPM.
+
+For continuous power/RPM bench work, use "Flywheel Tuning" (Tuning group).
+Panels > FlywheelTuning > speed holds setpointRpm, kP, kV and reversed;
+these values also supply Fixed Shot TeleOp. Hardware Tuning exposes one
+shooterPower and one wedgePosition. There is no separate big-shooter tuner.
+
+FIELD DISTANCE CALIBRATION (PROTOTYPE)
+Shooter Tuning remains disabled in source until field-calibration setup is ready.
 Run "Shooter Tuning" in the Prototyping group. Open Panels at
 http://192.168.43.1:8001 on the robot network and add the Field widget.
 The map shows robot position/heading, recent travel, the selected CELL and
 saved stations for that CELL. Current distance/RPM appear in Telemetry.
 
-Two independent, fixed-geometry shooters use separate encoders, motor controls,
-manual RPM settings, and persistent distance tables:
-  Big / LARGE_NECTAR:    launcherLeft  (default)
-  Small / SMALL_POLLEN:  launcherRight (default)
-Confirm this assignment against wiring. Change Launcher.big.motorName and
-Launcher.small.motorName if needed BEFORE INIT, then STOP/INIT after edits.
-Both motors need their own encoder cable. The example motors are goBILDA
-6000 RPM motors, 28 encoder ticks per motor revolution; verify your hardware.
+One fixed-geometry shooter serves both ball sizes using the same motor,
+encoder and RPM controller. SMALL_POLLEN and LARGE_NECTAR retain separate
+manual RPM presets and persistent distance tables.
+The default motor is smallShooter. Change Launcher.shooter.motorName if
+needed BEFORE INIT, then STOP/INIT after edits. Connect its encoder cable.
+The example motor is a goBILDA 6000 RPM motor with 28 encoder ticks per motor
+revolution; verify your hardware. Remeasure both ball tables for the new
+mechanism before using saved distance lookup.
 This mode also requires the four configured drive motors and Pinpoint.
 teamconfig8103_launcher_drive.xml is an example; match actual hub addresses
 and ports. The two bench XML files are wiring references, not complete
@@ -26,7 +51,7 @@ FIRST SETUP
    audience/red corner, +X right and +Y away from the audience. Heading zero
    points right; 90 degrees points away from the audience.
 2. In Panels > Configurables > ShooterTuning select the raised target CELL
-   (selectedCell). Both shooters use this same selected CELL.
+   (selectedCell). Both ball profiles use this same selected CELL.
    Start with frontal shots into that opening. The map uses nominal CELL
    coordinates from FieldConstants; confirm the real field reference.
 3. Put the robot at a measured position. Enter startX, startY and
@@ -35,13 +60,13 @@ FIRST SETUP
    Panels edits alone never relocate the robot. Repeat this reference
    procedure after every new INIT or interrupted localization.
 4. START with all run/drive controls released. Nothing spins automatically.
-   Use GP1 D-pad left for small or right for big. Hold GP1 LB for a low-voltage
-   direction check of ONLY that selected motor. Release to stop.
-   Confirm forward launch direction and positive encoder RPM for each motor;
-   adjust Launcher.big/small.reversed before a new INIT if needed.
-   Set that shooter's directionVerified=true only after checking it.
-5. Tune the selected motor's RPM controller as described below, then build
-   its distance table. Repeat for the other ball.
+   Use GP1 D-pad left for small or right for big ball presets. Both use the
+   same motor. Hold GP1 LB for a low-voltage direction check. Release to stop.
+   Confirm forward launch direction and positive encoder RPM;
+   adjust Launcher.shooter.reversed before a new INIT if needed.
+   Set Launcher.shooter.directionVerified=true only after checking it.
+5. Tune the motor's RPM controller as described below, then build separate
+   distance tables for the two ball sizes.
 
 DISTANCE CALIBRATION
 1. Choose the ball with GP1 D-pad left/right. Use MANUAL mode (GP1 Y toggles).
@@ -50,15 +75,15 @@ DISTANCE CALIBRATION
    scale is 0.35, configurable up to 0.5. You may also move it by hand with
    the drive controls released; Pinpoint still tracks movement.
 3. Stop, aim at the selected CELL and test shots manually. Hold GP1 RT to run
-   the selected shooter. Change RPM with GP1 D-pad up/down (50 RPM per press,
+   the shooter. Change RPM with GP1 D-pad up/down (50 RPM per press,
    configurable rpmStep), or edit Launcher.smallBallRpm / largeBallRpm.
-   Only the selected motor runs. Target changes update while RT is held.
+   Target changes update while RT is held.
 4. Once shots are repeatable, keep RT held and press GP1 A to save.
    Save requires a healthy, explicitly referenced field pose, drive controls
    released, at least 0.3 seconds stationary, and measured shooter RPM settled
    at the requested target. It saves the TARGET RPM that was verified by the
    encoder, not an instantaneous noisy speed.
-5. Look for SAVED in telemetry. The mode stops both shooters and the drive
+5. Look for SAVED in telemetry. The mode stops the shooter and the drive
    before writing the file; release RT before spinning again. Holding A
    never repeatedly saves. A point within one inch of an old distance replaces
    it, so you can retune a station. GP1 B with all run/drive controls released
@@ -91,15 +116,16 @@ RPM may update while driving, but stop and aim before evaluating a shot.
 Recalibrate after changing wheels, launch angle, gearing or other geometry.
 
 Lookup never extrapolates: closer/farther than the saved range stops the
-selected shooter and explains why. With no table or only one point it also
+shooter and explains why. With no table or only one point it also
 stays off. A lost field reference disables lookup and saving until a fresh
 INIT reference. Switching ball, CELL or mode while holding a control requires
 a release before that control can run again.
 GP1 X cancels shooter and drive; release RT, both LBs and X to rearm.
 Releasing RT stops the shooter immediately. STOP ends the mode.
 
-RPM CONTROL (SEPARATE FOR EACH MOTOR)
-Panels > Configurables > Launcher > big or small exposes that motor's controller.
+RPM CONTROL (ONE MOTOR, TWO BALL PRESETS)
+Panels > Configurables > Launcher > shooter exposes the field tuner's controller.
+These settings are separate from FlywheelTuning.speed used by Fixed Shot TeleOp.
 These are voltage-based gains: kP [V/RPM], kI [V/(RPM*s)], kD [V/(RPM/s)],
 kS [V], kV [V/RPM], kA [V/(RPM/s)]. Do not copy the old power-based bench
 gains directly. The controller divides requested voltage by measured battery
@@ -110,20 +136,19 @@ voltage to produce motor power.
   motorPower = clamp(feedforward + feedback, 0, min(maxVoltage, batteryV))
                / batteryV
 
-The small shooter defaults to kP=.015 and kV=.0016. The big shooter starts
-with kP=.002 and kV=12/6000. Both start with kI=kD=kS=kA=0,
+The shooter defaults to kP=.015 and kV=.0016, with kI=kD=kS=kA=0,
 maxVoltage=3 V and an acceleration limit of 1000 RPM/s.
 The conservative voltage ceiling may prevent reaching a requested shooting
 speed; check outputLimited and raise the ceiling deliberately as appropriate
 for the installed motor/mechanism before tuning high RPM.
 
-Tune each motor independently at several speeds: start with I/D/A zero and P
+Tune the motor at several speeds for both balls: start with I/D/A zero and P
 low or zero, adjust kV for steady speed, then P for correction and recovery.
 Add I only for persistent error, D if needed for damping, and A for ramp
 tracking. Check recovery after actual shots. The controller uses software
 PID/feedforward in RUN_WITHOUT_ENCODER; it does not stack Hub velocity control.
 
-Graph shooter.big.* or shooter.small.*:
+Graph shooter.*:
   targetRpm, referenceRpm, measuredRpm, feedforwardVolts, feedbackVolts,
   power, outputLimited and atSpeed.
 Graph shooter.rangeInches and shooter.lookupRpm to inspect distance lookup.
@@ -131,7 +156,7 @@ Readiness requires the final ramp target plus an uninterrupted speed dwell
 (default 250 ms within 150 RPM). Invalid feedback, missing encoder response,
 excessive loop gaps or speed timeout stop output. Release before retrying.
 Changing motor name, direction or encoder resolution requires STOP/INIT.
-Both motors use BRAKE at zero output and never command reverse power.
+The field-tuning motor uses BRAKE at zero output and never commands reverse power.
 
 PERSISTENCE
 GP1 A saves BOTH tables together in the Control Hub's FTC settings directory:

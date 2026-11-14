@@ -19,7 +19,7 @@ Station and Panels. AutoTune retains its own procedure UI.
 
 Live settings
 
-Panels Configurables exposes all 14 tuning groups, including Launcher.big/small
+Panels Configurables exposes the tuning groups, including Launcher.shooter
 gains, AxonTurret, HiveAutoAim, HiveVisionConfig, HivePedroConfig, MarrowConfig,
 FieldMap and the diagnostic input settings. These are the same Java fields the
 controllers use. PID gains, targets and settings read by the control loop can
@@ -30,13 +30,14 @@ Record the final tune in source; editing runtime values does not edit Java files
 
 Useful graphs
 
-Shooter Tuning provides separate numeric series for each motor:
-    shooter.big.targetRpm / measuredRpm / referenceRpm / power
-    shooter.small.targetRpm / measuredRpm / referenceRpm / power
-    shooter.big.feedforwardVolts / feedbackVolts / outputLimited
-    shooter.small.feedforwardVolts / feedbackVolts / outputLimited
+Shooter Tuning provides one numeric stream for the single shooter motor:
+    shooter.targetRpm / measuredRpm / referenceRpm / power
+    shooter.feedforwardVolts / feedbackVolts / outputLimited
 Use the complete dotted key for each series, for example
-shooter.big.measuredRpm. See SHOOTER_TUNING.txt for measured pose setup and saves.
+shooter.measuredRpm. See SHOOTER_TUNING.txt for measured pose setup and saves.
+FlywheelTuning.speed supplies the shared kP/kV settings and RPM target used
+by Flywheel Tuning and Fixed Shot TeleOp. Hardware Tuning now exposes
+shooterPower and wedgePosition for the single shooter and wedge.
 
 Axon Turret Test provides turret.actualDeg, turret.goalDeg, turret.profileDeg,
 turret.actualDegPerSec, turret.profileDegPerSec and the existing power terms.

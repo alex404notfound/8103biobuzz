@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
-<!-- Two-hub configuration for Fixed Shot TeleOp and Hardware Tuning. -->
+<!-- One wedge and one shooter. The device named bigShooter is the transfer motor. -->
 <Robot type="FirstInspires-FTC">
     <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
         <LynxModule name="Expansion Hub 1" port="1">
@@ -8,12 +8,10 @@
             <goBILDA5201SeriesMotor name="intake" port="2" />
             <goBILDA5201SeriesMotor name="smallShooter" port="3" />
             <Servo name="frontWedge" port="0" />
-            <Servo name="backWedge" port="1" />
             <Servo name="shotStopper" port="2" />
         </LynxModule>
         <LynxModule name="Control Hub" port="173">
             <goBILDA5201SeriesMotor name="frontRight" port="0" />
-            <goBILDA5201SeriesMotor name="transfer" port="1" />
             <goBILDA5201SeriesMotor name="bigShooter" port="2" />
             <goBILDA5201SeriesMotor name="frontLeft" port="3" />
         </LynxModule>

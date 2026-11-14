@@ -19,12 +19,11 @@ import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 import java.util.Arrays;
 import java.util.HashSet;
 
-/** Robot-relative driving and small-ball shots with the two-hub configuration. */
+/** Robot-relative driving, one wedge, and fixed shots with a single shooter. */
 @Configurable
 @TeleOp(name = "Fixed Shot TeleOp", group = "Competition")
 public class FixedShotTeleOp extends OpMode {
-    public static WedgeSettings frontWedge = new WedgeSettings();
-    public static WedgeSettings backWedge = new WedgeSettings();
+    public static WedgeSettings wedge = new WedgeSettings();
     public static volatile double intakePower = 1, transferPower = 1;
 
     public static class WedgeSettings {
@@ -38,7 +37,7 @@ public class FixedShotTeleOp extends OpMode {
     private Mecanum drive;
     private DcMotorEx intake, transfer, shooter;
     private Servo stopper;
-    private Wedge front, back;
+    private Wedge wedgeControl;
     private ShooterFlywheel flywheel;
     private boolean running, stopped, intakeOn, transferOn, shotCancelled;
 
@@ -52,17 +51,16 @@ public class FixedShotTeleOp extends OpMode {
         try {
             intake = hardwareMap.get(DcMotorEx.class, "intake");
             transfer = hardwareMap.get(DcMotorEx.class, Constants.TRANSFER_MOTOR_NAME);
-            DcMotorEx mappedShooter = hardwareMap.get(DcMotorEx.class, "smallShooter");
+            DcMotorEx mappedShooter = hardwareMap.get(DcMotorEx.class, Constants.SHOOTER_MOTOR_NAME);
             Servo mappedStopper = hardwareMap.get(Servo.class, "shotStopper");
-            front = new Wedge(hardwareMap.get(Servo.class, "frontWedge"), frontWedge);
-            back = new Wedge(hardwareMap.get(Servo.class, "backWedge"), backWedge);
+            wedgeControl = new Wedge(hardwareMap.get(Servo.class, Constants.WEDGE_SERVO_NAME), wedge);
             MecanumConfig config = Constants.drivetrainConfig;
             DcMotorEx fl = hardwareMap.get(DcMotorEx.class, config.frontLeftName.get());
             DcMotorEx fr = hardwareMap.get(DcMotorEx.class, config.frontRightName.get());
             DcMotorEx bl = hardwareMap.get(DcMotorEx.class, config.backLeftName.get());
             DcMotorEx br = hardwareMap.get(DcMotorEx.class, config.backRightName.get());
             requireDistinct(fl, fr, bl, br, intake, transfer, mappedShooter);
-            requireDistinct(front.servo, back.servo, mappedStopper);
+            requireDistinct(wedgeControl.servo, mappedStopper);
             shooter = mappedShooter;
             stopper = mappedStopper;
             brakedMotors = new DcMotorEx[]{fl, fr, bl, br, intake, transfer};
@@ -70,13 +68,12 @@ public class FixedShotTeleOp extends OpMode {
             for (DcMotorEx motor : brakedMotors) motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             intake.setDirection(DcMotorSimple.Direction.REVERSE);
             transfer.setDirection(DcMotorSimple.Direction.REVERSE);
-            flywheel = ShooterFlywheel.forSmallShooter(shooter, hardwareMap, SHOT_RPM_TOLERANCE);
+            flywheel = ShooterFlywheel.forShooter(shooter, hardwareMap, SHOT_RPM_TOLERANCE);
             shooter.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             drive = Constants.createDrivetrain(hardwareMap);
             drive.stop(true);
             stopper.setPosition(Constants.SHOT_STOPPER_BLOCKED_POSITION);
-            front.stow();
-            back.stow();
+            wedgeControl.stow();
             telemetry = RobotTelemetry.forOpMode(telemetry);
             report(false);
         } catch (RuntimeException failure) { shutdown(failure); }
@@ -85,8 +82,7 @@ public class FixedShotTeleOp extends OpMode {
     @Override public void start() {
         if (stopped) return;
         gamepad1.resetEdgeDetection();
-        front.buttonWasHeld = gamepad1.left_bumper;
-        back.buttonWasHeld = gamepad1.right_bumper;
+        wedgeControl.buttonWasHeld = gamepad1.left_bumper;
         running = true;
     }
 
@@ -113,8 +109,8 @@ public class FixedShotTeleOp extends OpMode {
 
             boolean shooting = gamepad1.a && !shotCancelled;
             if (shooting) {
-                double rpm = ShooterFlywheel.SMALL_SHOOTER.setpointRpm;
-                flywheel.updateRpm(rpm == 0 ? DEFAULT_SHOT_RPM : rpm, ShooterFlywheel.SMALL_SHOOTER);
+                double rpm = ShooterFlywheel.SHOOTER.setpointRpm;
+                flywheel.updateRpm(rpm == 0 ? DEFAULT_SHOT_RPM : rpm, ShooterFlywheel.SHOOTER);
             } else if (flywheel.getMode() != ShooterFlywheel.Mode.OFF) {
                 flywheel.idle();
             }
@@ -124,8 +120,7 @@ public class FixedShotTeleOp extends OpMode {
                     ? Constants.SHOT_STOPPER_UNBLOCKED_POSITION : Constants.SHOT_STOPPER_BLOCKED_POSITION);
             applyPower(intake, intakeOn ? intakePower : 0);
             applyPower(transfer, transferOn || feeding ? transferPower : 0);
-            front.update(gamepad1.left_bumper);
-            back.update(gamepad1.right_bumper);
+            wedgeControl.update(gamepad1.left_bumper);
             report(feeding);
         } catch (RuntimeException failure) { shutdown(failure); }
     }
@@ -134,11 +129,11 @@ public class FixedShotTeleOp extends OpMode {
         String status = flywheel.getMode() == ShooterFlywheel.Mode.OFF ? "Idle" : flywheel.getStatus();
         if (feeding) status = "Feeding";
         telemetry.addData("Shot status", status);
-        telemetry.addData("Small shooter setpoint RPM", flywheel.getTargetRpm());
-        telemetry.addData("Small shooter measured RPM", flywheel.getMeasuredRpm());
+        telemetry.addData("Shooter setpoint RPM", flywheel.getTargetRpm());
+        telemetry.addData("Shooter measured RPM", flywheel.getMeasuredRpm());
         telemetry.addData("Intake on", intakeOn);
         telemetry.addData("Transfer on", transferOn || feeding);
-        telemetry.addLine("GP1 sticks to drive, bumpers for front / back wedges.");
+        telemetry.addLine("GP1 sticks to drive, left bumper toggles the wedge.");
         telemetry.addLine("Tap B to toggle intake and Y to toggle transfer.");
         telemetry.addLine("Hold A to shoot within 300 RPM of the target. X cancels.");
         telemetry.update();

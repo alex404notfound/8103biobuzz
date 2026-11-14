@@ -5,18 +5,17 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.subsystems.ShooterFlywheel;
 
-/** Run the big shooter continuously during power or RPM tuning. */
+/** Run the single shooter continuously during power or RPM tuning. */
 @Configurable
-@TeleOp(name = "Big Shooter Tuning", group = "Tuning")
-public class BigShooterTuning extends ShooterTuningOpMode {
-    public static ShooterFlywheel.SpeedTuning speed =
-            new ShooterFlywheel.SpeedTuning(0, 12.0 / ShooterFlywheel.MAX_MOTOR_RPM, false);
+@TeleOp(name = "Flywheel Tuning", group = "Tuning")
+public class FlywheelTuning extends ShooterTuningOpMode {
+    public static ShooterFlywheel.SpeedTuning speed = ShooterFlywheel.SHOOTER;
     public static volatile ControlMode controlMode = ControlMode.POWER;
     public static volatile double power = 0.25;
     public static volatile double intakePower, transferPower;
     public static volatile int shotStopperBlocked = 1;
 
-    public BigShooterTuning() { super(Constants.BIG_SHOOTER_MOTOR_NAME, "bigShooter"); }
+    public FlywheelTuning() { super(Constants.SHOOTER_MOTOR_NAME, "shooter"); }
 
     @Override ShooterFlywheel.SpeedTuning speedTuning() { return speed; }
 

@@ -44,7 +44,7 @@ public final class ShotTable {
 
     public ShotTable() { this(Collections.emptyList()); }
     public ShotTable(List<Point> samples) {
-        if (samples.size() > MAX_POINTS) throw new IllegalArgumentException("At most 100 points per shooter");
+        if (samples.size() > MAX_POINTS) throw new IllegalArgumentException("At most 100 points per ball");
         List<Point> sorted = new ArrayList<>(samples);
         if (sorted.contains(null)) throw new IllegalArgumentException("Missing shot sample");
         sorted.sort(Comparator.comparingDouble(p -> p.distance));

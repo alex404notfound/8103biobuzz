@@ -25,27 +25,24 @@ import static org.mockito.Mockito.*;
 public class FixedShotTeleOpTest {
     private final HardwareMap map = mock(HardwareMap.class);
     private final Gamepad packet = new Gamepad();
-    private final FixedShotTeleOp.WedgeSettings originalFront = FixedShotTeleOp.frontWedge;
-    private final FixedShotTeleOp.WedgeSettings originalBack = FixedShotTeleOp.backWedge;
-    private final double originalSetpoint = ShooterFlywheel.SMALL_SHOOTER.setpointRpm;
+    private final FixedShotTeleOp.WedgeSettings originalWedge = FixedShotTeleOp.wedge;
+    private final double originalSetpoint = ShooterFlywheel.SHOOTER.setpointRpm;
     private FixedShotTeleOp op;
     private DcMotorEx frontLeft, shooter, transfer, intake;
-    private Servo stopper, frontWedge, backWedge;
+    private Servo stopper, wedge;
 
     @Before public void setUp() throws ReflectiveOperationException {
-        ShooterFlywheel.SMALL_SHOOTER.setpointRpm = 0;
-        FixedShotTeleOp.frontWedge = wedge(0.2, 0.7);
-        FixedShotTeleOp.backWedge = wedge(0.1, 0.9);
+        ShooterFlywheel.SHOOTER.setpointRpm = 0;
+        FixedShotTeleOp.wedge = wedge(0.2, 0.7);
         frontLeft = device(DcMotorEx.class, Constants.drivetrainConfig.frontLeftName.get());
         device(DcMotorEx.class, Constants.drivetrainConfig.frontRightName.get());
         device(DcMotorEx.class, Constants.drivetrainConfig.backLeftName.get());
         device(DcMotorEx.class, Constants.drivetrainConfig.backRightName.get());
-        shooter = device(DcMotorEx.class, "smallShooter");
+        shooter = device(DcMotorEx.class, Constants.SHOOTER_MOTOR_NAME);
         transfer = device(DcMotorEx.class, Constants.TRANSFER_MOTOR_NAME);
         intake = device(DcMotorEx.class, "intake");
         stopper = device(Servo.class, "shotStopper");
-        frontWedge = device(Servo.class, "frontWedge");
-        backWedge = device(Servo.class, "backWedge");
+        wedge = device(Servo.class, Constants.WEDGE_SERVO_NAME);
         VoltageSensor battery = mock(VoltageSensor.class);
         when(battery.getVoltage()).thenReturn(12.0);
         @SuppressWarnings("unchecked")
@@ -63,20 +60,20 @@ public class FixedShotTeleOpTest {
     @After public void tearDown() {
         try { op.stop(); }
         finally {
-            FixedShotTeleOp.frontWedge = originalFront;
-            FixedShotTeleOp.backWedge = originalBack;
-            ShooterFlywheel.SMALL_SHOOTER.setpointRpm = originalSetpoint;
+            FixedShotTeleOp.wedge = originalWedge;
+            ShooterFlywheel.SHOOTER.setpointRpm = originalSetpoint;
         }
     }
 
-    @Test public void closesStopperAndDrivesWithOnlyTheSmallBallHardware() {
+    @Test public void closesStopperAndDrivesWithOneShooterAndOneWedge() {
         initAndStart();
         verify(stopper).setPosition(0.75);
         packet.left_stick_y = -0.4f;
         loop();
         verify(frontLeft).setPower(doubleThat(power -> power > 0));
         verify(map, never()).get(eq(GoBildaPinpointDriver.class), anyString());
-        verify(map, never()).get(eq(DcMotorEx.class), eq(Constants.BIG_SHOOTER_MOTOR_NAME));
+        verify(map, never()).get(DcMotorEx.class, "transfer");
+        verify(map, never()).get(Servo.class, "backWedge");
         verify(transfer, never()).setPower(doubleThat(power -> power != 0));
         verify(shooter, never()).setPower(doubleThat(power -> power != 0));
     }
@@ -148,19 +145,17 @@ public class FixedShotTeleOpTest {
         verify(stopper).setPosition(0.75);
     }
 
-    @Test public void bumpersAndMotorButtonsToggleIndependently() {
+    @Test public void leftBumperTogglesTheSingleWedgeIndependentlyOfMotorButtons() {
         packet.left_bumper = true;
         initAndStart();
-        verify(frontWedge).setPosition(0.2);
-        verify(backWedge).setPosition(0.1);
-        verify(frontWedge, never()).setPosition(0.7);
+        verify(wedge).setPosition(0.2);
+        verify(wedge, never()).setPosition(0.7);
         packet.left_bumper = false;
         loop();
         packet.left_bumper = true;
         packet.b = true;
         loop();
-        verify(frontWedge).setPosition(0.7);
-        verify(backWedge, never()).setPosition(0.9);
+        verify(wedge).setPosition(0.7);
         verify(intake).setPower(FixedShotTeleOp.intakePower);
         verify(transfer, never()).setPower(doubleThat(power -> power != 0));
         clearInvocations(intake);
@@ -170,8 +165,7 @@ public class FixedShotTeleOpTest {
         loop();
         verify(intake).setPower(FixedShotTeleOp.intakePower);
         verify(transfer).setPower(FixedShotTeleOp.transferPower);
-        verify(backWedge).setPosition(0.9);
-        verify(frontWedge).setPosition(0.7);
+        verify(wedge).setPosition(0.7);
         packet.y = false;
         packet.left_bumper = false;
         loop();
@@ -180,12 +174,12 @@ public class FixedShotTeleOpTest {
         loop();
         verify(intake).setPower(0);
         verify(transfer).setPower(0);
-        verify(frontWedge, times(2)).setPosition(0.2);
-        verify(backWedge).setPosition(0.1);
+        verify(wedge, times(2)).setPosition(0.2);
+        verify(map, never()).get(Servo.class, "backWedge");
     }
 
     @Test public void anAliasedServoFailsInitBeforeMovingTheStopper() {
-        when(map.get(Servo.class, "backWedge")).thenReturn(stopper);
+        when(map.get(Servo.class, Constants.WEDGE_SERVO_NAME)).thenReturn(stopper);
         assertThrows(IllegalArgumentException.class, op::init);
         verifyNoInteractions(stopper);
     }

@@ -4,17 +4,17 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-/** Two independent fixed-geometry shooters. Only the selected ball's motor is powered. */
+/** One fixed-geometry shooter with separate RPM presets for the two ball sizes. */
 @Configurable
 public class Launcher {
-    // Preserve the existing configuration names; verify this big/small assignment on the robot.
-    public static ShooterFlywheel.Settings big = new ShooterFlywheel.Settings("launcherLeft");
-    public static ShooterFlywheel.Settings small = new ShooterFlywheel.Settings("launcherRight", ShooterFlywheel.SMALL_SHOOTER);
+    public static ShooterFlywheel.Settings shooter =
+            new ShooterFlywheel.Settings(Constants.SHOOTER_MOTOR_NAME, ShooterFlywheel.SHOOTER);
     public static volatile double smallBallRpm = 1000, largeBallRpm = 1000;
     public enum Ball { SMALL_POLLEN, LARGE_NECTAR }
 
-    private ShooterFlywheel bigShooter, smallShooter;
+    private ShooterFlywheel flywheel;
     private final Telemetry telemetry;
     private Ball ball = Ball.SMALL_POLLEN;
     private boolean enabled, closed;
@@ -22,27 +22,23 @@ public class Launcher {
     public Launcher(HardwareMap hardwareMap, Telemetry telemetry) {
         this.telemetry = telemetry;
         try {
-            DcMotorEx bigMotor = hardwareMap.get(DcMotorEx.class, big.motorName);
-            bigMotor.setPower(0);
-            DcMotorEx smallMotor = hardwareMap.get(DcMotorEx.class, small.motorName);
-            smallMotor.setPower(0);
-            if (bigMotor == smallMotor) throw new IllegalArgumentException("Big and small shooters need distinct motors");
-            bigShooter = new ShooterFlywheel(bigMotor, big, hardwareMap);
-            smallShooter = new ShooterFlywheel(smallMotor, small, hardwareMap);
+            DcMotorEx motor = hardwareMap.get(DcMotorEx.class, shooter.motorName);
+            motor.setPower(0);
+            flywheel = new ShooterFlywheel(motor, shooter, hardwareMap);
         } catch (RuntimeException failure) {
             try { stop(); } catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
             throw failure;
         }
     }
 
-    Launcher(ShooterFlywheel bigShooter, ShooterFlywheel smallShooter, Telemetry telemetry) {
-        this.bigShooter = bigShooter; this.smallShooter = smallShooter; this.telemetry = telemetry;
+    Launcher(ShooterFlywheel flywheel, Telemetry telemetry) {
+        this.flywheel = flywheel; this.telemetry = telemetry;
     }
 
     public void enable() {
         if (closed) return;
         enabled = true;
-        bigShooter.enable(); smallShooter.enable();
+        flywheel.enable();
     }
 
     public void selectBall(Ball selected) {
@@ -51,7 +47,7 @@ public class Launcher {
     }
 
     public Ball getBall() { return ball; }
-    public ShooterFlywheel selected() { return ball == Ball.LARGE_NECTAR ? bigShooter : smallShooter; }
+    public ShooterFlywheel selected() { return flywheel; }
     public double getManualRpm() { return ball == Ball.LARGE_NECTAR ? largeBallRpm : smallBallRpm; }
     public double getTargetRpm() { return selected().getTargetRpm(); }
     public double getMeasuredRpm() { return selected().getMeasuredRpm(); }
@@ -75,29 +71,28 @@ public class Launcher {
 
     public void idle() {
         if (closed) return;
-        try { bigShooter.idle(); } finally { smallShooter.idle(); }
+        flywheel.idle();
     }
 
     public void periodic() {
         if (closed) return;
         try {
-            bigShooter.periodic(); smallShooter.periodic();
+            flywheel.periodic();
         } catch (RuntimeException failure) {
             try { stop(); } catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
             throw failure;
         }
-        report("big", bigShooter); report("small", smallShooter);
+        report(flywheel);
     }
 
     public void stop() {
         if (closed) return;
         closed = true; enabled = false;
-        try { if (bigShooter != null) bigShooter.stop(); }
-        finally { if (smallShooter != null) smallShooter.stop(); }
+        if (flywheel != null) flywheel.stop();
     }
 
-    private void report(String name, ShooterFlywheel shooter) {
-        String key = "shooter." + name + ".";
+    private void report(ShooterFlywheel shooter) {
+        String key = "shooter.";
         telemetry.addData(key + "status", shooter.getStatus());
         telemetry.addData(key + "targetRpm", shooter.getTargetRpm());
         telemetry.addData(key + "measuredRpm", shooter.getMeasuredRpm());

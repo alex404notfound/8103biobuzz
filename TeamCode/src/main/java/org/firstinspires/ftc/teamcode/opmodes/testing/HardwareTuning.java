@@ -18,17 +18,17 @@ import org.firstinspires.ftc.teamcode.telemetry.RobotTelemetry;
 @TeleOp(name = "Hardware Tuning", group = "Tuning")
 public class HardwareTuning extends OpMode {
     public static volatile double frontLeftPower, frontRightPower, backLeftPower, backRightPower;
-    public static volatile double intakePower, transferPower, smallShooterPower, bigShooterPower;
-    public static volatile double frontWedgePosition = -1, backWedgePosition = -1, shotStopperPosition = -1;
+    public static volatile double intakePower, transferPower, shooterPower;
+    public static volatile double wedgePosition = -1, shotStopperPosition = -1;
 
     private DcMotorEx frontLeft, frontRight, backLeft, backRight;
-    private DcMotorEx intake, transfer, smallShooter, bigShooter;
-    private Servo frontWedge, backWedge, shotStopper;
+    private DcMotorEx intake, transfer, shooter;
+    private Servo wedge, shotStopper;
     private DcMotorEx[] motors = new DcMotorEx[0];
 
     @Override public void init() {
         zeroPowerSettings();
-        frontWedgePosition = backWedgePosition = shotStopperPosition = -1;
+        wedgePosition = shotStopperPosition = -1;
         try {
             MecanumConfig drive = Constants.drivetrainConfig;
             frontLeft = hardwareMap.get(DcMotorEx.class, drive.frontLeftName.get());
@@ -37,13 +37,11 @@ public class HardwareTuning extends OpMode {
             backRight = hardwareMap.get(DcMotorEx.class, drive.backRightName.get());
             intake = hardwareMap.get(DcMotorEx.class, "intake");
             transfer = hardwareMap.get(DcMotorEx.class, Constants.TRANSFER_MOTOR_NAME);
-            smallShooter = hardwareMap.get(DcMotorEx.class, "smallShooter");
-            bigShooter = hardwareMap.get(DcMotorEx.class, Constants.BIG_SHOOTER_MOTOR_NAME);
+            shooter = hardwareMap.get(DcMotorEx.class, Constants.SHOOTER_MOTOR_NAME);
             motors = new DcMotorEx[]{frontLeft, frontRight, backLeft, backRight,
-                    intake, transfer, smallShooter, bigShooter};
+                    intake, transfer, shooter};
             MotorSafety.stopAndBrake(motors);
-            frontWedge = hardwareMap.get(Servo.class, "frontWedge");
-            backWedge = hardwareMap.get(Servo.class, "backWedge");
+            wedge = hardwareMap.get(Servo.class, Constants.WEDGE_SERVO_NAME);
             shotStopper = hardwareMap.get(Servo.class, "shotStopper");
             for (DcMotorEx motor : motors) {
                 motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -55,7 +53,7 @@ public class HardwareTuning extends OpMode {
             backRight.setDirection(drive.backRightDirection.get());
             intake.setDirection(DcMotorSimple.Direction.REVERSE);
             transfer.setDirection(DcMotorSimple.Direction.REVERSE);
-            smallShooter.setDirection(ShooterFlywheel.SMALL_SHOOTER.reversed
+            shooter.setDirection(ShooterFlywheel.SHOOTER.reversed
                     ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
             telemetry = RobotTelemetry.forOpMode(telemetry);
             telemetry.addLine("After START, open Panels > Configurables > HardwareTuning.");
@@ -72,10 +70,8 @@ public class HardwareTuning extends OpMode {
             applyPower(backRight, backRightPower);
             applyPower(intake, intakePower);
             applyPower(transfer, transferPower);
-            applyPower(smallShooter, smallShooterPower);
-            applyPower(bigShooter, bigShooterPower);
-            applyPosition(frontWedge, frontWedgePosition);
-            applyPosition(backWedge, backWedgePosition);
+            applyPower(shooter, shooterPower);
+            applyPosition(wedge, wedgePosition);
             applyPosition(shotStopper, shotStopperPosition);
         } catch (RuntimeException failure) { shutdown(failure); }
     }
@@ -87,7 +83,7 @@ public class HardwareTuning extends OpMode {
 
     private static void zeroPowerSettings() {
         frontLeftPower = frontRightPower = backLeftPower = backRightPower = 0;
-        intakePower = transferPower = smallShooterPower = bigShooterPower = 0;
+        intakePower = transferPower = shooterPower = 0;
     }
 
     private static void applyPower(DcMotorEx motor, double power) {

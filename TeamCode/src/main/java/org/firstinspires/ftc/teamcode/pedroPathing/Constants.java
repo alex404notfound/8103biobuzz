@@ -21,8 +21,10 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 public class Constants {
     // Configured device names identified by the on-robot motor checks.
+    // The transfer is wired to the port historically configured as "bigShooter".
     public static final String TRANSFER_MOTOR_NAME = "bigShooter";
-    public static final String BIG_SHOOTER_MOTOR_NAME = "transfer";
+    public static final String SHOOTER_MOTOR_NAME = "smallShooter";
+    public static final String WEDGE_SERVO_NAME = "frontWedge";
 
     public static final double SHOT_STOPPER_BLOCKED_POSITION = 0.75;
     public static final double SHOT_STOPPER_UNBLOCKED_POSITION = 0.60;

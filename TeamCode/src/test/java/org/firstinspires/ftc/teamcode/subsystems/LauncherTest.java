@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.subsystems;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -12,40 +13,44 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 public class LauncherTest {
-    private final ShooterFlywheel big = mock(ShooterFlywheel.class), small = mock(ShooterFlywheel.class);
+    private final ShooterFlywheel flywheel = mock(ShooterFlywheel.class);
     private final Telemetry telemetry = mock(Telemetry.class);
+    private final ShooterFlywheel.Settings originalSettings = Launcher.shooter;
+    private final double originalSmallRpm = Launcher.smallBallRpm, originalLargeRpm = Launcher.largeBallRpm;
     private Launcher launcher;
 
     @Before public void setUp() {
-        defaults();
-        launcher = new Launcher(big, small, telemetry);
-    }
-    @After public void tearDown() { defaults(); }
-    private static void defaults() {
         Launcher.smallBallRpm = Launcher.largeBallRpm = 1000;
-        Launcher.big = new ShooterFlywheel.Settings("launcherLeft");
-        Launcher.small = new ShooterFlywheel.Settings("launcherRight");
+        Launcher.shooter = new ShooterFlywheel.Settings(Constants.SHOOTER_MOTOR_NAME);
+        launcher = new Launcher(flywheel, telemetry);
     }
 
-    @Test public void initReadsBothSensorsWithoutEnablingEitherMotor() {
+    @After public void tearDown() {
+        Launcher.shooter = originalSettings;
+        Launcher.smallBallRpm = originalSmallRpm;
+        Launcher.largeBallRpm = originalLargeRpm;
+    }
+
+    @Test public void initReadsTheEncoderWithoutEnablingTheMotor() {
         launcher.requestRpm(1000); launcher.requestMotorTest(); launcher.periodic();
-        verify(big).periodic(); verify(small).periodic();
-        verify(big, never()).enable(); verify(small, never()).enable();
-        verify(big, never()).requestRpm(anyDouble()); verify(small, never()).requestRpm(anyDouble());
-        verify(big, never()).requestMotorTest(); verify(small, never()).requestMotorTest();
+        verify(flywheel).periodic();
+        verify(flywheel, never()).enable();
+        verify(flywheel, never()).requestRpm(anyDouble());
+        verify(flywheel, never()).requestMotorTest();
     }
 
-    @Test public void selectionStopsBothBeforeRoutingToTheOtherMotor() {
+    @Test public void ballSelectionStopsTheSameMotorBeforeUsingTheOtherPreset() {
         launcher.enable();
         launcher.requestRpm(1500);
+        ShooterFlywheel pollenMotor = launcher.selected();
         launcher.selectBall(Launcher.Ball.LARGE_NECTAR);
+        assertSame(pollenMotor, launcher.selected());
         launcher.requestRpm(2500); launcher.requestMotorTest();
-        InOrder order = inOrder(big, small);
-        order.verify(small).requestRpm(1500);
-        order.verify(big).idle(); order.verify(small).idle();
-        order.verify(big).requestRpm(2500); order.verify(big).requestMotorTest();
-        verify(big, never()).requestRpm(1500); verify(small, never()).requestRpm(2500);
-        verify(small, never()).requestMotorTest();
+        InOrder order = inOrder(flywheel);
+        order.verify(flywheel).requestRpm(1500);
+        order.verify(flywheel).idle();
+        order.verify(flywheel).requestRpm(2500);
+        order.verify(flywheel).requestMotorTest();
     }
 
     @Test public void presetsAndRpmAdjustmentsRemainIndependentAndBounded() {
@@ -62,72 +67,70 @@ public class LauncherTest {
         assertEquals(1200, Launcher.smallBallRpm, 0);
     }
 
-    @Test public void readinessAndTelemetryReferToEachShootersOwnFeedback() {
-        when(big.isAtSpeed()).thenReturn(true); when(small.isAtSpeed()).thenReturn(false);
-        when(big.getMeasuredRpm()).thenReturn(2500.0);
-        when(small.getMeasuredRpm()).thenReturn(1200.0);
+    @Test public void bothBallProfilesReadTheSingleEncoderAndTelemetryStream() {
+        when(flywheel.isAtSpeed()).thenReturn(true);
+        when(flywheel.getMeasuredRpm()).thenReturn(2500.0);
         assertFalse(launcher.isAtSpeed());
-        launcher.enable(); assertFalse(launcher.isAtSpeed());
-        launcher.selectBall(Launcher.Ball.LARGE_NECTAR); assertTrue(launcher.isAtSpeed());
-        assertEquals(2500, launcher.getMeasuredRpm(), 0);
-        launcher.periodic();
-        verify(telemetry).addData("shooter.big.measuredRpm", 2500.0);
-        verify(telemetry).addData("shooter.small.measuredRpm", 1200.0);
+        launcher.enable(); assertTrue(launcher.isAtSpeed());
+        for (Launcher.Ball ball : Launcher.Ball.values()) {
+            launcher.selectBall(ball);
+            assertEquals(2500, launcher.getMeasuredRpm(), 0);
+            launcher.periodic();
+        }
+        verify(telemetry, times(2)).addData("shooter.measuredRpm", 2500.0);
     }
 
-    @Test public void stopAndIdleAttemptBothMotorsWhenOneThrows() {
+    @Test public void failedStopStillClosesTheLauncherAgainstLaterRequests() {
         launcher.enable();
-        doThrow(new IllegalStateException("disconnected")).when(big).idle();
-        assertThrows(IllegalStateException.class, launcher::idle);
-        verify(small).idle();
-        doThrow(new IllegalStateException("disconnected")).when(big).stop();
+        doThrow(new IllegalStateException("disconnected")).when(flywheel).stop();
         assertThrows(IllegalStateException.class, launcher::stop);
-        verify(small).stop();
-        clearInvocations(big, small);
+        clearInvocations(flywheel);
         launcher.enable(); launcher.requestRpm(1000); launcher.requestMotorTest();
         launcher.periodic(); launcher.idle(); launcher.stop();
         assertFalse(launcher.isAtSpeed());
-        verifyNoInteractions(big, small);
+        verifyNoInteractions(flywheel);
     }
 
-    @Test public void sensorExceptionShutsDownBothControllers() {
+    @Test public void sensorExceptionShutsDownTheController() {
         launcher.enable();
-        doThrow(new IllegalStateException("encoder disconnected")).when(small).periodic();
+        doThrow(new IllegalStateException("encoder disconnected")).when(flywheel).periodic();
         assertThrows(IllegalStateException.class, launcher::periodic);
-        verify(big).stop(); verify(small).stop();
+        verify(flywheel).stop();
+        assertFalse(launcher.isAtSpeed());
     }
 
-    @Test public void hardwareMappingRequiresTwoDistinctMotorsAndNoAdditionalMechanism() {
+    @Test public void hardwareMappingRequiresOnlyOneShooterMotor() {
         HardwareMap map = mock(HardwareMap.class);
-        DcMotorEx bigMotor = mock(DcMotorEx.class), smallMotor = mock(DcMotorEx.class);
-        when(map.get(DcMotorEx.class, "launcherLeft")).thenReturn(bigMotor);
-        when(map.get(DcMotorEx.class, "launcherRight")).thenReturn(smallMotor);
+        DcMotorEx motor = mock(DcMotorEx.class);
+        when(map.get(DcMotorEx.class, Constants.SHOOTER_MOTOR_NAME)).thenReturn(motor);
         new Launcher(map, telemetry).stop();
-        verify(map).get(DcMotorEx.class, "launcherLeft");
-        verify(map).get(DcMotorEx.class, "launcherRight");
+        verify(map).get(DcMotorEx.class, Constants.SHOOTER_MOTOR_NAME);
         verifyNoMoreInteractions(map);
-        when(map.get(DcMotorEx.class, "launcherRight")).thenReturn(bigMotor);
-        assertThrows(IllegalArgumentException.class, () -> new Launcher(map, telemetry));
+        verify(motor, atLeastOnce()).setPower(0);
+        verify(motor, never()).setPower(doubleThat(p -> p != 0));
     }
 
-    @Test public void realControllersUseSeparateEncodersGainsAndMotorOutputs() {
-        DcMotorEx bigMotor = mock(DcMotorEx.class), smallMotor = mock(DcMotorEx.class);
+    @Test public void realControllerUsesTheSameMotorAndGainsAndResetsReadinessOnBallChange() {
+        DcMotorEx motor = mock(DcMotorEx.class);
         AtomicLong now = new AtomicLong();
-        Launcher.big.directionVerified = Launcher.small.directionVerified = true;
-        Launcher.big.kV = .001; Launcher.small.kV = .002;
-        when(bigMotor.getVelocity()).thenReturn(2000.0 * 28 / 60);
-        when(smallMotor.getVelocity()).thenReturn(1000.0 * 28 / 60);
+        Launcher.shooter.directionVerified = true;
+        Launcher.shooter.kV = .002;
+        Launcher.shooter.speedDwellMs = 0;
+        when(motor.getVelocity()).thenReturn(1000.0 * 28 / 60);
         Launcher real = new Launcher(
-                new ShooterFlywheel(bigMotor, Launcher.big, () -> 12, now::get),
-                new ShooterFlywheel(smallMotor, Launcher.small, () -> 12, now::get), telemetry);
+                new ShooterFlywheel(motor, Launcher.shooter, () -> 12, now::get), telemetry);
         real.enable(); real.requestRpm(1000); real.periodic();
-        verify(smallMotor).setPower(2.0 / 12);
-        verify(bigMotor, never()).setPower(doubleThat(p -> p > 0));
+        verify(motor).setPower(2.0 / 12);
+        assertTrue(real.isAtSpeed());
         real.selectBall(Launcher.Ball.LARGE_NECTAR);
-        clearInvocations(bigMotor, smallMotor);
-        real.requestRpm(2000); now.set(20_000_000L); real.periodic();
-        verify(bigMotor).setPower(2.0 / 12);
-        verify(smallMotor, never()).setPower(doubleThat(p -> p > 0));
-        assertEquals(2000, real.getMeasuredRpm(), 1e-9);
+        verify(motor, atLeastOnce()).setPower(0);
+        assertFalse(real.isAtSpeed());
+        assertEquals(0, real.getTargetRpm(), 0);
+        clearInvocations(motor);
+        when(motor.getVelocity()).thenReturn(1500.0 * 28 / 60);
+        real.requestRpm(1500); now.set(20_000_000L); real.periodic();
+        verify(motor).setPower(3.0 / 12);
+        assertEquals(1500, real.getMeasuredRpm(), 1e-9);
+        assertTrue(real.isAtSpeed());
     }
 }

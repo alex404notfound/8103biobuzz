@@ -5,6 +5,7 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import java.util.Arrays;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
@@ -12,7 +13,7 @@ import java.util.function.LongSupplier;
 /** One independently controlled flywheel motor with its own encoder and voltage-based PID/feedforward. */
 public class ShooterFlywheel {
     public static final double MAX_MOTOR_RPM = 6000;
-    public static final SpeedTuning SMALL_SHOOTER = new SpeedTuning();
+    public static final SpeedTuning SHOOTER = new SpeedTuning();
     private static final long DIRECTION_SETTLE_NANOS = 400_000_000L;
     private static final double DEFAULT_RPM_TOLERANCE = 150;
 
@@ -31,7 +32,7 @@ public class ShooterFlywheel {
         }
     }
 
-    /** Launcher exposes separate Panels settings for the big and small shooters. */
+    /** Launcher exposes the single motor's controller settings in Panels. */
     public static class Settings {
         public volatile String motorName;
         public volatile boolean reversed = false, directionVerified = false;
@@ -76,12 +77,12 @@ public class ShooterFlywheel {
         this(motor, settings, () -> readBattery(map), System::nanoTime);
     }
 
-    public static ShooterFlywheel forSmallShooter(DcMotorEx motor, HardwareMap map) {
-        return forSmallShooter(motor, map, DEFAULT_RPM_TOLERANCE);
+    public static ShooterFlywheel forShooter(DcMotorEx motor, HardwareMap map) {
+        return forShooter(motor, map, DEFAULT_RPM_TOLERANCE);
     }
 
-    public static ShooterFlywheel forSmallShooter(DcMotorEx motor, HardwareMap map, double rpmTolerance) {
-        return forShooter(motor, map, "smallShooter", SMALL_SHOOTER, rpmTolerance);
+    public static ShooterFlywheel forShooter(DcMotorEx motor, HardwareMap map, double rpmTolerance) {
+        return forShooter(motor, map, Constants.SHOOTER_MOTOR_NAME, SHOOTER, rpmTolerance);
     }
 
     public static ShooterFlywheel forTuning(DcMotorEx motor, HardwareMap map, String motorName, SpeedTuning tuning) {

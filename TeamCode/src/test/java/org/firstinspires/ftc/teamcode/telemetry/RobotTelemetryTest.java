@@ -47,14 +47,14 @@ public class RobotTelemetryTest {
         RobotTelemetry.forNextFTC(driver, panels.getWrapper());
         Telemetry combined = RobotTelemetry.forNextFTC(driver, panels.getWrapper());
         assertEquals(originalBackends.size() + 1, backends.size());
-        combined.addData("shooter.big.measuredRpm", 2400.5);
+        combined.addData("shooter.measuredRpm", 2400.5);
         combined.addLine("READY");
         assertTrue(frames.isEmpty()); // Adding data never steals NextFTC's end-of-loop flush.
         dev.nextftc.robot.Telemetry.update();
         assertEquals(1, frames.size());
-        assertTrue(frames.get(0).contains("shooter.big.measuredRpm: 2400.5"));
+        assertTrue(frames.get(0).contains("shooter.measuredRpm: 2400.5"));
         assertTrue(frames.get(0).contains("READY"));
-        verify(driver).addData("shooter.big.measuredRpm", 2400.5);
+        verify(driver).addData("shooter.measuredRpm", 2400.5);
     }
 
     @Test public void nextInitDiscardsBufferedDataFromThePreviousOpMode() {
