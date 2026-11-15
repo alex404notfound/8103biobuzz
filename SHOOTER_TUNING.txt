@@ -2,16 +2,32 @@ SHOOTER TUNING — MOVE, TUNE, SAVE, LOOK UP
 
 Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
 
-CURRENT ROBOT: ONE WEDGE, ONE SHOOTER
-The two-hub configuration keeps the existing device names and ports:
+CURRENT ROBOT: ONE CONFIGURATION, SEVEN MOTORS, TWO SERVOS
+Use teamconfig8103.xml, the only bundled Team 8103 robot configuration.
+Control Hub + Expansion Hub handle all seven motors. The REV Servo Hub
+handles both servos. Motor device names and ports keep the verified wiring:
+  Front-left drive:  frontRight, Expansion Hub motor port 1.
+  Front-right drive: backLeft, Control Hub motor port 0.
+  Back-left drive:   frontLeft, Control Hub motor port 3.
+  Back-right drive:  backRight, Expansion Hub motor port 0.
+  Intake:   intake, Expansion Hub motor port 2.
   Shooter:  smallShooter, Expansion Hub motor port 3, with its encoder.
-  Wedge:    frontWedge, Expansion Hub servo port 0.
   Transfer: bigShooter, Control Hub motor port 2 (historical device name).
-The removed shooter was on Control Hub motor port 1, named transfer; that
-device and backWedge are removed from teamconfig8103.xml and the fixed-shot XML.
+  Wedge:    frontWedge, REV Servo Hub servo port 0.
+  Stopper:  shotStopper, REV Servo Hub servo port 1.
+Control Hub motor port 1 is unused. There is no second shooter or wedge.
+
+Connect the REV Servo Hub with power and RS485 to the hub chain. This config
+uses Servo Hub address 3 and Expansion Hub address 1. The Servo Hub's actual
+address must be 3; change it in REV Hardware Client if needed. Every attached
+Servo Hub/Expansion Hub needs a distinct address. REV's setup guide:
+https://docs.revrobotics.com/rev-crossover-products/servo/servo-hub/configuring-the-servo-hub-with-a-control-hub
+
 Install the full APK to update bundled XML configurations, then select the
 updated configuration on the Driver Station or make the matching port edits
 in the active configuration. A code-only reload does not update XML resources.
+Old configurations saved on the robot are separate from bundled resources;
+delete those manually in Configure Robot if you want only one saved choice.
 
 Fixed Shot TeleOp: GP1 sticks drive, left bumper toggles the single wedge,
 B toggles intake, Y toggles transfer, hold A to shoot, and X cancels.
@@ -41,9 +57,9 @@ The example motor is a goBILDA 6000 RPM motor with 28 encoder ticks per motor
 revolution; verify your hardware. Remeasure both ball tables for the new
 mechanism before using saved distance lookup.
 This mode also requires the four configured drive motors and Pinpoint.
-teamconfig8103_launcher_drive.xml is an example; match actual hub addresses
-and ports. The two bench XML files are wiring references, not complete
-configurations for this field-based OpMode. No camera is required.
+The single base configuration contains only the seven motors and two servos;
+add the installed Pinpoint to teamconfig8103 before enabling this field-based
+OpMode. No camera is required.
 
 FIRST SETUP
 1. Verify the chassis/Pinpoint setup and measured travel with Pinpoint Check.
