@@ -74,16 +74,16 @@ public final class HivePedroController {
         enabled = true;
         releaseRequired = true;
         stationarySince = -1;
-        status = "Release RT and center sticks, then hold RT to approach";
+        status = "Release R2 and center sticks, then hold R2 to approach";
     }
 
     /** Call with the new camera sample BEFORE Drivetrain.periodic can issue another path output. */
     public void beforeDrive(boolean holdTrigger, boolean cancel) {
         if (!enabled) return;
         held = holdTrigger;
-        if (cancel) { abort("Cancelled; release RT to retry"); releaseRequired = true; return; }
+        if (cancel) { abort("Cancelled; release R2 to retry"); releaseRequired = true; return; }
         if (!held) {
-            if (isActive()) abort("RT released");
+            if (isActive()) abort("R2 released");
             releaseRequired = false;
             return;
         }
@@ -156,7 +156,7 @@ public final class HivePedroController {
                 }
                 // Planning is synchronous while stopped. A slow plan must not start on stale samples.
                 if (!drive.isLocalizationReady() || tracker.getTarget() == null)
-                    throw new IllegalArgumentException("Sensors expired while planning; release RT to reacquire");
+                    throw new IllegalArgumentException("Sensors expired while planning; release R2 to reacquire");
             } catch (IllegalArgumentException rejected) {
                 plannedRoute = null;
                 phase = Phase.ABORTED;
@@ -208,7 +208,7 @@ public final class HivePedroController {
             if (range <= stopDistance + distanceTolerance && Math.abs(bearing) <= angleTolerance) {
                 phase = Phase.REACHED;
                 releaseRequired = true;
-                status = "At test standoff; release RT before another attempt";
+                status = "At test standoff; release R2 before another attempt";
                 drive.stop();
                 return;
             }
@@ -223,7 +223,7 @@ public final class HivePedroController {
 
     private boolean guard() {
         if (!isActive()) return false;
-        if (!held) { abort("RT released"); return false; }
+        if (!held) { abort("R2 released"); return false; }
         if (!drive.isLocalizationReady() || !Constants.isFinitePose(drive.getPose())) {
             abort("Pinpoint lost: " + drive.getLocalizationStatus()); return false;
         }
@@ -237,10 +237,10 @@ public final class HivePedroController {
         if (target == null || target.position == null || target.position.forwardInches <= 0) {
             abort("Ball lost, stale, or outside calibrated floor area"); return false;
         }
-        if (tracker.getTrackId() != chosenTrack) { abort("Target changed; release RT to reacquire"); return false; }
+        if (tracker.getTrackId() != chosenTrack) { abort("Target changed; release R2 to reacquire"); return false; }
         double[] point = fieldPoint(pose, target);
         if (Math.hypot(point[0] - ballX, point[1] - ballY) > maxTargetShift) {
-            abort("Ball position shifted; release RT to reacquire"); return false;
+            abort("Ball position shifted; release R2 to reacquire"); return false;
         }
         if (planner != null) {
             try {

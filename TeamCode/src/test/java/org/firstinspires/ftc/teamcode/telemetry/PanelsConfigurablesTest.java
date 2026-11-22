@@ -9,6 +9,7 @@ import com.bylazar.configurables.variables.generics.GenericField;
 import org.firstinspires.ftc.teamcode.opmodes.ConfigureColorRangefinder;
 import org.firstinspires.ftc.teamcode.opmodes.testing.AxonTurretTest;
 import org.firstinspires.ftc.teamcode.opmodes.testing.FieldMap;
+import org.firstinspires.ftc.teamcode.opmodes.testing.FlywheelTuning;
 import org.firstinspires.ftc.teamcode.opmodes.testing.HiveAutoAimTest;
 import org.firstinspires.ftc.teamcode.opmodes.testing.ShooterTuning;
 import org.firstinspires.ftc.teamcode.pedroPathing.MarrowConfig;
@@ -31,7 +32,7 @@ public class PanelsConfigurablesTest {
         Class<?>[] groups = {Launcher.class, AxonTurret.class, HiveAutoAim.class, HiveVisionConfig.class,
                 HivePedroConfig.class, Limelight.class, Drivetrain.class, ExampleSubsystem.class,
                 MarrowConfig.class, ConfigureColorRangefinder.class, ShooterTuning.class,
-                AxonTurretTest.class, HiveAutoAimTest.class, FieldMap.class};
+                AxonTurretTest.class, HiveAutoAimTest.class, FieldMap.class, FlywheelTuning.class};
         for (Class<?> group : groups) {
             assertTrue(group.getSimpleName(), group.isAnnotationPresent(Configurable.class));
             Plugin.INSTANCE.scan(loader, group);
@@ -58,6 +59,21 @@ public class PanelsConfigurablesTest {
             assertTrue(GlobalConfigurables.INSTANCE.getFieldsMap().get(gain.getId()).setValue("0.0042"));
             assertEquals(.0042, Launcher.shooter.kP, 0);
         } finally { Launcher.shooter.kP = before; }
+    }
+
+    @Test public void panelsEditsEachFlywheelMotorsGainsIndependently() {
+        double firstGain = FlywheelTuning.speed.kP;
+        double secondGain = FlywheelTuning.speed2.kP;
+        try {
+            Plugin.INSTANCE.scan(loader, FlywheelTuning.class);
+            GenericTypeJson secondMotor = GlobalConfigurables.INSTANCE.getJvmFields().get(loader).stream()
+                    .filter(field -> field.getName().equals("speed2")).findFirst().get().getToJsonType();
+            GenericTypeJson gain = secondMotor.getCustomValues().stream()
+                    .filter(field -> field.getFieldName().equals("kP")).findFirst().get();
+            assertTrue(GlobalConfigurables.INSTANCE.getFieldsMap().get(gain.getId()).setValue("0.0035"));
+            assertEquals(0.0035, FlywheelTuning.speed2.kP, 0);
+            assertEquals(firstGain, FlywheelTuning.speed.kP, 0);
+        } finally { FlywheelTuning.speed2.kP = secondGain; }
     }
 
     @Test public void configurableFieldsAreReleasedWhenSlothUnloadsTheirClassloader() {

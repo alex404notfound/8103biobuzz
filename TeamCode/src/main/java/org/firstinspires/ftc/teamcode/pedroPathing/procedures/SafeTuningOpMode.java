@@ -36,8 +36,8 @@ abstract class SafeTuningOpMode<Result> extends TuningOpMode<Result> {
     private String localizationStatus = "WAITING FOR SAMPLE";
 
     protected SafeTuningOpMode(String name, String description, boolean canStop) {
-        super(name, description + "\nKeep clear of the robot. On the gamepad, X recalibrates "
-                + "while still; release then press A at READY to arm. B or STOP aborts.", true);
+        super(name, description + "\nKeep clear of the robot. Square recalibrates "
+                + "while still. Press Cross at READY to arm after releasing it. Circle or STOP aborts.", true);
     }
 
     protected long timeoutNanos() { return 15_000_000_000L; }
@@ -60,7 +60,7 @@ abstract class SafeTuningOpMode<Result> extends TuningOpMode<Result> {
             rawLocalizer = Constants.createGuardedLocalizer(hardwareMap);
             pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, Constants.localizerConfig.name.get());
             safety = new TuningSafety(this::sample, this::stopDrive, this::restoreOffsets,
-                    this::isStopRequested, () -> gamepad1.b, System::nanoTime, timeoutNanos());
+                    this::isStopRequested, () -> gamepad1.circle, System::nanoTime, timeoutNanos());
             waitForStart();
             awaitArming();
             Result result = runSafely();
@@ -76,23 +76,23 @@ abstract class SafeTuningOpMode<Result> extends TuningOpMode<Result> {
     protected abstract Result runSafely() throws InterruptedException;
 
     private void awaitArming() throws InterruptedException {
-        boolean previousA = gamepad1.a;
-        boolean previousX = false;
+        boolean previousCross = gamepad1.cross;
+        boolean previousSquare = false;
         while (true) {
-            boolean x = gamepad1.x;
-            if (x && !previousX) safety.recalibrate(pinpoint::recalibrateIMU);
-            previousX = x;
+            boolean square = gamepad1.square;
+            if (square && !previousSquare) safety.recalibrate(pinpoint::recalibrateIMU);
+            previousSquare = square;
             boolean ready = safety.prepare();
-            boolean a = gamepad1.a;
+            boolean cross = gamepad1.cross;
             telemetry.addData("Pinpoint", ready ? "READY"
                     : "READY".equals(localizationStatus) ? "CALIBRATING - keep still" : localizationStatus);
-            telemetry.addLine("Keep still. X recalibrates. Release then press A at READY to arm. B/STOP aborts.");
+            telemetry.addLine("Keep still. Square recalibrates. Release then press Cross at READY to arm. Circle or STOP aborts.");
             telemetry.update();
-            if (ready && a && !previousA) {
+            if (ready && cross && !previousCross) {
                 safety.begin();
                 return;
             }
-            previousA = a;
+            previousCross = cross;
             Thread.sleep(10);
         }
     }
@@ -123,7 +123,7 @@ abstract class SafeTuningOpMode<Result> extends TuningOpMode<Result> {
             @Override public MotionState state() { return rawLocalizer.state(); }
             @Override public void update() { safety.checkpoint(); }
             @Override public void reset() {
-                throw new IllegalStateException("Use X before arming to recalibrate Pinpoint");
+                throw new IllegalStateException("Use Square before arming to recalibrate Pinpoint");
             }
         };
     }

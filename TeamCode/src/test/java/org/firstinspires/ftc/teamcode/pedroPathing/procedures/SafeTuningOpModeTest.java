@@ -120,7 +120,7 @@ public class SafeTuningOpModeTest {
     @Test(timeout = 5000) public void actualForesightPoweredLoopHonorsHeldB() throws Exception {
         ForwardVelocity phase = new ForwardVelocity(48);
         configure(phase);
-        afterPower = () -> phase.gamepad1.b = true;
+        afterPower = () -> phase.gamepad1.circle = true;
         expectConfiguredAbort(phase);
         assertEquals(1, largestPower, 0);
         assertStopped();
@@ -129,7 +129,7 @@ public class SafeTuningOpModeTest {
     @Test(timeout = 5000) public void actualWheelIdentifierStopsItsSingleMotorOnB() throws Exception {
         WheelIdentification phase = new WheelIdentification(2, "back left", "backLeft");
         configure(phase);
-        afterPower = () -> phase.gamepad1.b = true;
+        afterPower = () -> phase.gamepad1.circle = true;
         expectConfiguredAbort(phase);
         assertEquals(0.25, largestPower, 0);
         assertStopped();
@@ -217,7 +217,7 @@ public class SafeTuningOpModeTest {
             }
         };
         onTelemetry = () -> {
-            if (turnSeen) phase.gamepad1.a = offsetSamples[0] >= 4;
+            if (turnSeen) phase.gamepad1.cross = offsetSamples[0] >= 4;
         };
         phase.start();
         phase.runOpMode();
@@ -257,7 +257,7 @@ public class SafeTuningOpModeTest {
         doAnswer(call -> { turnSeen = true; return null; })
                 .when(phase.telemetry).addData(eq("Turn (degrees)"), any(Object.class));
         doAnswer(call -> {
-            if (readySeen && !turnSeen) phase.gamepad1.a = true;
+            if (readySeen && !turnSeen) phase.gamepad1.cross = true;
             onTelemetry.run();
             return true;
         }).when(phase.telemetry).update();

@@ -2,26 +2,35 @@ SHOOTER TUNING — MOVE, TUNE, SAVE, LOOK UP
 
 Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
 
-CURRENT ROBOT: ONE CONFIGURATION, SEVEN MOTORS, TWO SERVOS
+CURRENT ROBOT: ONE CONFIGURATION, SEVEN MOTORS, THREE SERVOS, PINPOINT
 Use teamconfig8103.xml, the only bundled Team 8103 robot configuration.
-Control Hub + Expansion Hub handle all seven motors. The REV Servo Hub
-handles both servos. Motor device names and ports keep the verified wiring:
-  Front-left drive:  frontRight, Expansion Hub motor port 1.
-  Front-right drive: backLeft, Control Hub motor port 0.
-  Back-left drive:   frontLeft, Control Hub motor port 3.
-  Back-right drive:  backRight, Expansion Hub motor port 0.
-  Intake:   intake, Expansion Hub motor port 2.
-  Shooter:  smallShooter, Expansion Hub motor port 3, with its encoder.
-  Transfer: bigShooter, Control Hub motor port 2 (historical device name).
-  Wedge:    frontWedge, REV Servo Hub servo port 0.
-  Stopper:  shotStopper, REV Servo Hub servo port 1.
-Control Hub motor port 1 is unused. There is no second shooter or wedge.
-
-Connect the REV Servo Hub with power and RS485 to the hub chain. This config
-uses Servo Hub address 3 and Expansion Hub address 1. The Servo Hub's actual
-address must be 3; change it in REV Hardware Client if needed. Every attached
-Servo Hub/Expansion Hub needs a distinct address. REV's setup guide:
-https://docs.revrobotics.com/rev-crossover-products/servo/servo-hub/configuring-the-servo-hub-with-a-control-hub
+Control Hub and Expansion Hub handle all seven motors. The bundled mapping is
+  Front-left drive:  frontRight, Control Hub motor port 0.
+  Front-right drive: backLeft, Expansion Hub motor port 2.
+  Back-left drive:   frontLeft, Control Hub motor port 1.
+  Back-right drive:  backRight, Expansion Hub motor port 1.
+  Intake/transfer: intake, Expansion Hub motor port 0.
+  Flywheel motor 1: smallShooter, Expansion Hub motor and encoder port 3.
+  Flywheel motor 2: shooter2, Control Hub motor and encoder port 2.
+  Front wedge: frontWedge, Control Hub servo port 0.
+  Shot stopper: shotStopper, Control Hub servo port 2.
+  Turret: turret, Control Hub servo port 4, standard positional Servo.
+  Odometry: pinpoint, Control Hub I2C port 1 (goBILDA Pinpoint computer).
+  Forward pod: Pinpoint X encoder port, goBILDA 4-Bar pod preset.
+  Sideways pod: Pinpoint Y encoder port, goBILDA 4-Bar pod preset.
+Both pods connect to Pinpoint; only the computer is listed in Configure Robot.
+Keep Control Hub I2C port 0 free of Pinpoint; it shares the built-in IMU.
+Run Pinpoint Check, then measure offsets and verify directions in Constants.
+Pinpoint Check is the standalone odometry test; other enabled drive modes do
+not use Pinpoint. Add Panels Telemetry + Field widgets for X/Y, heading, the
+live robot marker and trail. In INIT, keep still and press Square to calibrate.
+Wait for READY.
+Optionally set PinpointCheck.startX/startY/startHeadingDegrees in Configurables
+and tap Cross in INIT to apply a starting pose. Default (72,72,0) is a test reference;
+use measured coordinates for the actual field location. Move the robot by hand
+after START. See PANELS_SETUP.txt for access and the field coordinate convention.
+Pinpoint wiring reference:
+https://pedropathing.com/docs/pathing/tuning/localization/pinpoint
 
 Install the full APK to update bundled XML configurations, then select the
 updated configuration on the Driver Station or make the matching port edits
@@ -29,17 +38,45 @@ in the active configuration. A code-only reload does not update XML resources.
 Old configurations saved on the robot are separate from bundled resources;
 delete those manually in Configure Robot if you want only one saved choice.
 
-Fixed Shot TeleOp: GP1 sticks drive, left bumper toggles the single wedge,
-B toggles intake, Y toggles transfer, hold A to shoot, and X cancels.
+Connect a DualShock 4 (PS4) or DualSense (PS5) to the Driver Station via USB.
+Press Options + Cross to assign it as gamepad 1. If using a second controller,
+press Options + Circle on that controller to assign it as gamepad 2. Confirm
+the assignments on the Driver Station before starting an OpMode.
+
+In Fixed Shot TeleOp, GP1 sticks drive and L1 toggles the wedge.
+Circle toggles the shared intake/transfer motor. Hold Cross to shoot and
+press Square to cancel.
+Hold L2 to aim left or R2 to aim right. Trigger pressure controls how quickly
+the target moves. Releasing the triggers, pressing both, or pressing Square
+holds the last target. Release the triggers before resuming after Square or
+if they were held through START.
+In Panels > Configurables > FixedShotTeleOp, turretMinPosition and
+turretMaxPosition default to 0.40 and 0.60 on the normalized servo range.
+Set them to match the mechanism's travel. turretPositionPerSecond controls
+the rate (default 0.25 units per second), and turretReversed swaps directions.
 Set FixedShotTeleOp.wedge.stowedPosition/deployedPosition before INIT; the
 wedge does not move until both positions are valid and different.
-The right bumper has no wedge action. Automatic feeding waits until the
-shooter is within 300 RPM of its target. The default target is 3000 RPM.
+While Cross is held, the shared motor feeds only when the shooter is within
+300 RPM of its target. Releasing Cross returns control to the Circle toggle.
+The default target is 3000 RPM.
 
 For continuous power/RPM bench work, use "Flywheel Tuning" (Tuning group).
-Panels > FlywheelTuning > speed holds setpointRpm, kP, kV and reversed;
-these values also supply Fixed Shot TeleOp. Hardware Tuning exposes one
-shooterPower and one wedgePosition. There is no separate big-shooter tuner.
+Remove balls before INIT. The controls are live in INIT and after START.
+Under Panels > Configurables > FlywheelTuning, use speed for motor 1 and
+speed2 for motor 2. Each has its own setpointRpm, kP, kV and reversed, and
+uses its own encoder feedback. RPM is the default and both targets start at
+zero. Leave either target at zero to tune the other motor on its own.
+In POWER mode, use power for motor 1 and power2 for motor 2.
+In Panels Graph, select Target RPM and Current RPM for motor 1, and
+Motor 2 Target RPM and Motor 2 Current RPM for motor 2. All four appear in
+Telemetry. Both target readings are zero in POWER mode.
+In Flywheel Tuning and Hardware Tuning, intakePower controls the shared motor.
+Flywheel Tuning keeps that motor off when the shot stopper is unavailable.
+In Hardware Tuning, INIT telemetry lists each control with the configured device
+name and its detected connection. After START, shooterPower drives smallShooter
+and shooter2Power drives shooter2. Use wedgePosition, shotStopperPosition, and
+turretPosition for the three servos. Turret commands use the travel limits set
+in FixedShotTeleOp. Use Pinpoint Check for the odometry computer.
 
 FIELD DISTANCE CALIBRATION (PROTOTYPE)
 Shooter Tuning remains disabled in source until field-calibration setup is ready.
@@ -57,9 +94,9 @@ The example motor is a goBILDA 6000 RPM motor with 28 encoder ticks per motor
 revolution; verify your hardware. Remeasure both ball tables for the new
 mechanism before using saved distance lookup.
 This mode also requires the four configured drive motors and Pinpoint.
-The single base configuration contains only the seven motors and two servos;
-add the installed Pinpoint to teamconfig8103 before enabling this field-based
-OpMode. No camera is required.
+The single base configuration includes Pinpoint on Control Hub I2C port 1.
+Verify the pod model, directions and measured offsets before enabling this
+field-based OpMode. No camera is required.
 
 FIRST SETUP
 1. Verify the chassis/Pinpoint setup and measured travel with Pinpoint Check.
@@ -71,13 +108,13 @@ FIRST SETUP
    Start with frontal shots into that opening. The map uses nominal CELL
    coordinates from FieldConstants; confirm the real field reference.
 3. Put the robot at a measured position. Enter startX, startY and
-   startHeadingDegrees. During INIT, GP2 X recalibrates Pinpoint while still.
-   Wait for READY, then GP2 A applies the measured start pose.
+   startHeadingDegrees. During INIT, GP2 Square recalibrates Pinpoint while still.
+   Wait for READY, then GP2 Cross applies the measured start pose.
    Panels edits alone never relocate the robot. Repeat this reference
    procedure after every new INIT or interrupted localization.
 4. START with all run/drive controls released. Nothing spins automatically.
    Use GP1 D-pad left for small or right for big ball presets. Both use the
-   same motor. Hold GP1 LB for a low-voltage direction check. Release to stop.
+   same motor. Hold GP1 L1 for a low-voltage direction check. Release to stop.
    Confirm forward launch direction and positive encoder RPM;
    adjust Launcher.shooter.reversed before a new INIT if needed.
    Set Launcher.shooter.directionVerified=true only after checking it.
@@ -85,30 +122,30 @@ FIRST SETUP
    distance tables for the two ball sizes.
 
 DISTANCE CALIBRATION
-1. Choose the ball with GP1 D-pad left/right. Use MANUAL mode (GP1 Y toggles).
-2. Move the robot to a shooting station. Hold GP2 LB and use the left stick
+1. Choose the ball with GP1 D-pad left/right. Use MANUAL mode (GP1 Triangle toggles).
+2. Move the robot to a shooting station. Hold GP2 L1 and use the left stick
    for robot-relative translation, right stick X for turning. Default drive
    scale is 0.35, configurable up to 0.5. You may also move it by hand with
    the drive controls released; Pinpoint still tracks movement.
-3. Stop, aim at the selected CELL and test shots manually. Hold GP1 RT to run
+3. Stop, aim at the selected CELL and test shots manually. Hold GP1 R2 to run
    the shooter. Change RPM with GP1 D-pad up/down (50 RPM per press,
    configurable rpmStep), or edit Launcher.smallBallRpm / largeBallRpm.
-   Target changes update while RT is held.
-4. Once shots are repeatable, keep RT held and press GP1 A to save.
+   Target changes update while R2 is held.
+4. Once shots are repeatable, keep R2 held and press GP1 Cross to save.
    Save requires a healthy, explicitly referenced field pose, drive controls
    released, at least 0.3 seconds stationary, and measured shooter RPM settled
    at the requested target. It saves the TARGET RPM that was verified by the
    encoder, not an instantaneous noisy speed.
 5. Look for SAVED in telemetry. The mode stops the shooter and the drive
-   before writing the file; release RT before spinning again. Holding A
+   before writing the file; release R2 before spinning again. Holding Cross
    never repeatedly saves. A point within one inch of an old distance replaces
-   it, so you can retune a station. GP1 B with all run/drive controls released
+   it, so you can retune a station. GP1 Circle with all run/drive controls released
    undoes the last successful save from this run, including replacements.
 6. Repeat at different distances. Each ball needs at least TWO different
    distances before lookup works. Start with near/middle/far stations and add
    stations wherever intermediate test shots need correction. Cover the
    actual shortest and longest distances you intend to shoot.
-7. Press GP1 Y for LOOKUP, release the controls, then hold RT. As the robot
+7. Press GP1 Triangle for LOOKUP, release the controls, then hold R2. As the robot
    moves, its current distance selects the two surrounding measurements and
    linearly interpolates RPM. All intermediate positions work without another
    save. Nothing writes to storage while simply moving in LOOKUP.
@@ -136,8 +173,9 @@ shooter and explains why. With no table or only one point it also
 stays off. A lost field reference disables lookup and saving until a fresh
 INIT reference. Switching ball, CELL or mode while holding a control requires
 a release before that control can run again.
-GP1 X cancels shooter and drive; release RT, both LBs and X to rearm.
-Releasing RT stops the shooter immediately. STOP ends the mode.
+GP1 Square cancels shooter and drive. Release R2, both L1 buttons, and
+Square to rearm.
+Releasing R2 stops the shooter immediately. STOP ends the mode.
 
 RPM CONTROL (ONE MOTOR, TWO BALL PRESETS)
 Panels > Configurables > Launcher > shooter exposes the field tuner's controller.
@@ -175,7 +213,7 @@ Changing motor name, direction or encoder resolution requires STOP/INIT.
 The field-tuning motor uses BRAKE at zero output and never commands reverse power.
 
 PERSISTENCE
-GP1 A saves BOTH tables together in the Control Hub's FTC settings directory:
+GP1 Cross saves BOTH tables together in the Control Hub's FTC settings directory:
   shooter-distance-tables-v1.json
 The file is loaded on the next INIT and survives app/robot restarts. Save uses
 an atomic replacement, file sync and verification. A failed write keeps the

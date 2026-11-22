@@ -34,7 +34,7 @@ public class HiveAutoAimTest extends OpMode {
     private HiveAutoAim aim;
     private final BulkCacheSession bulkCache = new BulkCacheSession();
     private boolean active, stopped, releaseRequired, fieldPoseInitialized;
-    private String poseStatus = "Field origin unknown: measure start pose, then INIT gamepad2 A";
+    private String poseStatus = "Field origin unknown: measure start pose, then press GP2 Cross in INIT";
 
     public HiveAutoAimTest() { }
     HiveAutoAimTest(ServoTurret turret, Drivetrain drive, HiveAutoAim aim, Telemetry telemetry) {
@@ -57,7 +57,7 @@ public class HiveAutoAimTest extends OpMode {
     @Override public void init_loop() {
         if (stopped) return;
         try {
-            boolean seed = gamepad2.aWasPressed(), calibrate = gamepad2.xWasPressed();
+            boolean seed = gamepad2.crossWasPressed(), calibrate = gamepad2.squareWasPressed();
             selectCell();
             if (calibrate) {
                 fieldPoseInitialized = false;
@@ -67,7 +67,7 @@ public class HiveAutoAimTest extends OpMode {
             sample();
             if (seed) seedFieldPose();
             report();
-            telemetry.addLine("INIT GP2 X: stationary Pinpoint calibration | A: apply measured starting pose");
+            telemetry.addLine("In INIT, GP2 Square calibrates Pinpoint while still and GP2 Cross applies the measured start pose.");
             telemetry.update();
         } catch (RuntimeException failure) { shutdown(failure); }
     }
@@ -98,14 +98,14 @@ public class HiveAutoAimTest extends OpMode {
             boolean jogLeft = gamepad1.dpadLeftWasPressed(), jogRight = gamepad1.dpadRightWasPressed();
             selectCell();
             // Consume these INIT-only edges even while active; never queue a later pose reset.
-            gamepad2.aWasPressed(); gamepad2.xWasPressed();
-            if (gamepad1.x) releaseRequired = true;
+            gamepad2.crossWasPressed(); gamepad2.squareWasPressed();
+            if (gamepad1.square) releaseRequired = true;
             boolean aimHeld = gamepad1.right_trigger > 0.25;
             if (releaseRequired || aimHeld || !gamepad2.left_bumper) drive.stop();
             sample();
             if (releaseRequired) {
                 aim.clear();
-                if (!aimHeld && !gamepad1.left_bumper && !gamepad1.x && !gamepad2.left_bumper)
+                if (!aimHeld && !gamepad1.left_bumper && !gamepad1.square && !gamepad2.left_bumper)
                     releaseRequired = false;
             } else {
                 if (gamepad1.left_bumper) {
@@ -173,10 +173,10 @@ public class HiveAutoAimTest extends OpMode {
         telemetry.addData("aim.candidateGoalDeg", aim.getCandidateGoalDegrees());
         telemetry.addData("turret.commandedDeg", turret.getCommandedDegrees());
         telemetry.addData("turret.commandedPosition", turret.getCommandedPosition());
-        telemetry.addLine("GP1 LB + D-pad left/right to jog, RT to aim, X to cancel tracking");
-        telemetry.addLine("GP2 LB + sticks: drive after field pose is set. Hold RT stops chassis.");
+        telemetry.addLine("Hold GP1 L1 and press D-pad left/right to jog. Hold R2 to aim. Square cancels.");
+        telemetry.addLine("Hold GP2 L1 and use the sticks to drive after setting the field pose. Holding GP1 R2 stops the chassis.");
         telemetry.addLine("GP1 D-pad down: audience CELL | up: far CELL. Driver selects the raised end.");
-        if (releaseRequired) telemetry.addLine("Release GP1 RT, LB and X, and GP2 LB to arm.");
+        if (releaseRequired) telemetry.addLine("Release GP1 R2, L1, and Square plus GP2 L1 to arm.");
     }
     private void shutdown(RuntimeException failure) {
         try { stop(); } catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }

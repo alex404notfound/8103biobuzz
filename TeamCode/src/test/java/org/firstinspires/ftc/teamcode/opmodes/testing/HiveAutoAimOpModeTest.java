@@ -156,10 +156,10 @@ public class HiveAutoAimOpModeTest {
         seedPose();
         arm(); op.gamepad1.right_trigger = 1; op.loop();
         clearInvocations(turret, drive, aim);
-        op.gamepad1.x = true; op.loop();
+        op.gamepad1.square = true; op.loop();
         verify(drive, atLeastOnce()).stop();
         verify(aim).clear();
-        op.gamepad1.x = false; op.loop();
+        op.gamepad1.square = false; op.loop();
         verify(turret, never()).setAngleDegrees(anyDouble());
         op.gamepad1.right_trigger = 0; op.loop();
         op.gamepad1.right_trigger = 1; op.loop();
@@ -202,7 +202,7 @@ public class HiveAutoAimOpModeTest {
     }
 
     @Test public void invalidInitSeedNeverChangesThePose() {
-        when(op.gamepad2.aWasPressed()).thenReturn(true);
+        when(op.gamepad2.crossWasPressed()).thenReturn(true);
         op.init_loop(); // No measured-pose confirmation.
         HiveAutoAimTest.startPoseConfigured = true;
         for (double invalid : new double[]{Double.NaN, Double.POSITIVE_INFINITY, -.1, 144.1}) {
@@ -223,7 +223,7 @@ public class HiveAutoAimOpModeTest {
     @Test public void rejectedReseedRevokesPriorFieldDriveAuthorization() {
         seedPose();
         HiveAutoAimTest.startPoseConfigured = false;
-        when(op.gamepad2.aWasPressed()).thenReturn(true, false);
+        when(op.gamepad2.crossWasPressed()).thenReturn(true, false);
         op.init_loop();
         arm(); op.gamepad2.left_bumper = true; op.loop();
         verify(drive, atLeastOnce()).stop();
@@ -231,19 +231,19 @@ public class HiveAutoAimOpModeTest {
     }
 
     @Test public void initCalibrationClearsHistoryAndActivePoseButtonsNeverResetOdometry() {
-        when(op.gamepad2.xWasPressed()).thenReturn(true, false);
+        when(op.gamepad2.squareWasPressed()).thenReturn(true, false);
         op.init_loop();
         verify(drive).recalibrateLocalization();
         verify(aim).clear();
         arm();
         HiveAutoAimTest.startPoseConfigured = true;
-        when(op.gamepad2.xWasPressed()).thenReturn(true, false);
-        when(op.gamepad2.aWasPressed()).thenReturn(true, false);
+        when(op.gamepad2.squareWasPressed()).thenReturn(true, false);
+        when(op.gamepad2.crossWasPressed()).thenReturn(true, false);
         op.loop(); op.loop();
         verify(drive, never()).recalibrateLocalization();
         verify(drive, never()).setStartingPose(any());
-        verify(op.gamepad2, atLeastOnce()).xWasPressed();
-        verify(op.gamepad2, atLeastOnce()).aWasPressed();
+        verify(op.gamepad2, atLeastOnce()).squareWasPressed();
+        verify(op.gamepad2, atLeastOnce()).crossWasPressed();
     }
 
     @Test public void pinpointHealthRecoveryDoesNotRestoreFieldDriveWithoutAnotherInitSeed() {
@@ -259,8 +259,8 @@ public class HiveAutoAimOpModeTest {
         verify(drive, atLeastOnce()).stop();
         verify(drive, never()).arcadeDrive(anyDouble(), anyDouble(), anyDouble(), any());
         verify(telemetry).addData("Field half (estimate)", "UNKNOWN / UNKNOWN");
-        // A driver-station health recovery and an active-mode A press cannot silently reseed.
-        when(op.gamepad2.aWasPressed()).thenReturn(true, false);
+        // A driver-station health recovery and an active-mode Cross press cannot silently reseed.
+        when(op.gamepad2.crossWasPressed()).thenReturn(true, false);
         op.loop();
         verify(drive, never()).setStartingPose(any());
         verify(drive, never()).arcadeDrive(anyDouble(), anyDouble(), anyDouble(), any());
@@ -351,7 +351,7 @@ public class HiveAutoAimOpModeTest {
         HiveAutoAimTest.startPoseConfigured = true;
         HiveAutoAimTest.startX = 30; HiveAutoAimTest.startY = 40;
         HiveAutoAimTest.startHeadingDegrees = 90;
-        when(op.gamepad2.aWasPressed()).thenReturn(true, false);
+        when(op.gamepad2.crossWasPressed()).thenReturn(true, false);
         op.init_loop();
     }
 

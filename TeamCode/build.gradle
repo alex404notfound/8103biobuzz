@@ -50,21 +50,26 @@ dependencies {
 
     implementation 'dev.frozenmilk.sinister:Sloth:0.3.2'
     implementation 'com.bylazar.sloth:fullpanels:0.3.2+1.0.13'
-    // Sloth/Panels require 2.4.10; align NextFTC's reflection runtime with it.
-    implementation platform('org.jetbrains.kotlin:kotlin-bom:2.4.10')
-    implementation 'com.pedropathing:revhub:3.0.1'
+    // Keep stdlib and NextFTC/Panels reflection on the same stable runtime.
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:2.4.21')
+    implementation 'com.pedropathing:revhub:3.0.2'
     // 1.0.3 caches the scanner search target (fixes startup ANRs) and fixes
     // 1.0.2's first-tuner registration crash. See docs/DEPENDENCIES.md.
     implementation 'com.pedropathing:tuning:1.0.3'
-    // NextFTC v2's suite version is 0.2.1; Ivy remains its single scheduler.
-    implementation 'dev.nextftc.v2:robot:0.2.1'
+    // Ivy remains NextFTC v2's single scheduler.
+    implementation 'dev.nextftc.v2:robot:0.3.0'
     implementation 'com.pedropathing.ivy:core:1.1.1'
-    implementation 'com.skeletonarmyftc.marrow:core:1.2.1'
+    implementation 'com.skeletonarmyftc.marrow:core:1.2.5'
+    // Last Jackson line supporting Android API 24/25 (Control Hub).
+    // Marrow otherwise pulls 2.10.0; 2.14+ requires Android API 26.
+    implementation platform('com.fasterxml.jackson:jackson-bom:2.13.5')
 
     testImplementation 'junit:junit:4.13.2'
     // Preserve the existing subclass mock behavior when updating Mockito 5.
     testImplementation 'org.mockito:mockito-subclass:5.24.0'
     testImplementation 'org.json:json:20260814'
+    // Exercise Marrow persistence against the BOM-selected runtime.
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind'
 }
 
 // Keep Load 0.3.2's tasks and rotating reload files, with explicit ADB targeting.

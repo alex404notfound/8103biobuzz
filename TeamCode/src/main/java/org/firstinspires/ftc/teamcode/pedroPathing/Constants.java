@@ -21,10 +21,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 
 public class Constants {
     // Configured device names identified by the on-robot motor checks.
-    // The transfer is wired to the port historically configured as "bigShooter".
-    public static final String TRANSFER_MOTOR_NAME = "bigShooter";
+    public static final String INTAKE_MOTOR_NAME = "intake";
+    public static final DcMotorSimple.Direction INTAKE_MOTOR_DIRECTION = DcMotorSimple.Direction.FORWARD;
     public static final String SHOOTER_MOTOR_NAME = "smallShooter";
+    public static final String SECOND_SHOOTER_MOTOR_NAME = "shooter2";
     public static final String WEDGE_SERVO_NAME = "frontWedge";
+    public static final String TURRET_SERVO_NAME = "turret";
 
     public static final double SHOT_STOPPER_BLOCKED_POSITION = 0.75;
     public static final double SHOT_STOPPER_UNBLOCKED_POSITION = 0.60;
@@ -42,6 +44,7 @@ public class Constants {
     });
 
     public static PinpointConfig localizerConfig = new PinpointConfig(c -> {
+        // teamconfig8103: Control Hub I2C 1; forward pod -> X, strafe pod -> Y.
         c.name.set("pinpoint");
         // X pod measures forward travel; its offset is measured along robot Y.
         // Setup values only: replace with the Pinpoint AutoTune measurements.

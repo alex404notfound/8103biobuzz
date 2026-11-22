@@ -39,8 +39,8 @@ public class HivePedroTest extends RobotOpMode {
 
     @Override protected void onInitLoop() {
         sampleCamera();
-        if (gamepad1.xWasPressed()) robot.drivetrain.recalibrateLocalization();
-        robot.telemetry.addLine("INIT: keep still. X calibrates Pinpoint. Verify fixed camera geometry and Pedro tuning.");
+        if (gamepad1.squareWasPressed()) robot.drivetrain.recalibrateLocalization();
+        robot.telemetry.addLine("INIT: keep still. Square calibrates Pinpoint. Verify fixed camera geometry and Pedro tuning.");
         showTelemetry();
     }
 
@@ -50,7 +50,7 @@ public class HivePedroTest extends RobotOpMode {
         sampleCamera();
         boolean stickMoved = Math.abs(gamepad1.left_stick_x) > 0.15 || Math.abs(gamepad1.left_stick_y) > 0.15
                 || Math.abs(gamepad1.right_stick_x) > 0.15 || Math.abs(gamepad1.right_stick_y) > 0.15;
-        approach.beforeDrive(gamepad1.right_trigger > 0.5, gamepad1.x || stickMoved);
+        approach.beforeDrive(gamepad1.right_trigger > 0.5, gamepad1.square || stickMoved);
     }
 
     @Override protected void onAfterMechanisms() { approach.afterSensors(); showTelemetry(); }
@@ -61,14 +61,14 @@ public class HivePedroTest extends RobotOpMode {
         else if (gamepad1.dpad_down) tracker.setFilter(HiveBallTracker.Filter.BLUE);
         else if (gamepad1.dpad_left) tracker.setFilter(HiveBallTracker.Filter.YELLOW);
         // One measured ball height per run; this moving test deliberately has no mixed-class mode.
-        if (old != tracker.getFilter()) approach.abort("Class changed; release RT to reacquire");
+        if (old != tracker.getFilter()) approach.abort("Class changed; release R2 to reacquire");
         LLResult frame = camera.getLatestResult();
         tracker.update(frame);
         robot.telemetry.addData("Detector pipeline requested / received", pipeline + " / " + (frame == null ? "none" : frame.getPipelineIndex()));
     }
 
     private void showTelemetry() {
-        robot.telemetry.addLine("Release then hold RT: one approach. Release RT / X / move a stick: stop.");
+        robot.telemetry.addLine("Release and hold R2 for one approach. Release R2, press Square, or move a stick to stop.");
         robot.telemetry.addLine("D-pad left/up/down: yellow/red/blue. Settings apply on re-INIT. No intake/pickup action.");
         robot.telemetry.addData("Approach phase", approach.getPhase());
         robot.telemetry.addData("Approach status", approach.getStatus());

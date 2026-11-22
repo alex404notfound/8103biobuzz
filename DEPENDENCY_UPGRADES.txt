@@ -1,0 +1,100 @@
+Dependency upgrade audit - 2026-11-15
+
+Selected stable versions
+
+  Pedro revhub/core       3.0.1  -> 3.0.2
+  NextFTC v2 suite        0.2.1  -> 0.3.0
+  Marrow                  1.2.1  -> 1.2.5
+  Kotlin BOM              2.4.10 -> 2.4.21
+  Jackson BOM/runtime     2.10.0 -> 2.13.5
+
+Gradle remains at 9.1.0. The original wrapper scripts, jar and properties are
+unchanged, along with the Android Gradle plugin at 8.13.2.
+
+NextFTC compatibility
+
+NextFTC 0.3.0 changes OpModeHook.afterConstruction() to accept a NextOpMode.
+RobotOpMode uses the new signature. The test harness passes the actual OpMode
+and follows 0.3.0's reverse hook teardown order. The existing INIT/START/STOP,
+exception cleanup, repeat initialization, registration and scheduler tests run
+against the new published libraries. Ivy remains the single scheduler.
+
+Blaze remains optional and disabled: team OpModes still extend NextOpMode.
+Robot measurements, motion limits, driver controls and tuning gates were retained.
+
+Marrow 1.2.5 includes Weaver fixes for heading handling, close targets, composite
+derivatives and invalid paths. Our independent path clearance validation and
+explicit Pedro heading interpolation remain in place. Existing path, keep-out,
+heading and camera-stage regression tests pass against the new libraries.
+
+Jackson is aligned with a BOM rather than Marrow's old 2.10.0 defaults. Version
+2.13.5 is the newest release in the last line supporting Android API 24/25;
+Jackson 2.14+ requires API 26, exceeding this project's API 24 minimum and the
+Control Hub's API 25. Added tests exercise Marrow's own mapper with legacy typed
+JSON and nested settings round trips, without Android storage access.
+
+Compatibility limits checked
+
+  AGP 8.13.2 is retained. In an isolated project copy, AGP 9.5.1 with Gradle
+  9.9.1 failed :TeamCode:assembleSloth with "Attempt at compiling intermediate
+  artifact without its context". A successful normal APK build alone would
+  not establish that Sloth reloads work.
+
+  AppCompat 1.2.0 is retained. The installed Sloth FullPanels wrapper declares
+  a strict 1.2.0 constraint; independently upgrading AppCompat to 1.8.0 would
+  conflict with the supported Panels bundle.
+
+Already at the latest published stable version under the installed coordinates:
+  All eight FTC SDK modules 12.0.0; AutoTune 1.0.3; Ivy core 1.1.1;
+  Sloth/Load 0.3.2; Sloth FullPanels 0.3.2+1.0.13; JUnit 4.13.2;
+  Mockito subclass/core 5.24.0; test JSON 20260814.
+
+Verification
+
+  python3 tools/run_gradle.py --doctor
+  python3 tools/run_gradle.py :TeamCode:testDebugUnitTest :TeamCode:assembleDebug :TeamCode:assembleSloth
+  FTC_TOOLS_HOME="$PWD/.tools" FTC_SLOTH_TEST_SDK="$PWD" python3 -m unittest discover -s tests -v
+
+The host integration suite redirects every ADB/install action to fake tools;
+it never connects to or installs on a robot. PowerShell checks require pwsh.
+
+Results on macOS with JDK 25 and Gradle 9.1.0: 484 Java tests passed with no failures or skips;
+assembleDebug and assembleSloth passed, including duplicate-class checks.
+The 34 host tests completed with 33 passed and one PowerShell-only check skipped.
+The toolchain doctor and git diff --check passed. Runtime dependency resolution
+confirmed the selected versions, aligned Kotlin stdlib/reflect and Jackson, and
+no Dashboard/Slothboard dependencies.
+
+Before using these libraries on the robot, perform a full APK installation:
+  python3 tools/deploy.py --full
+
+A Sloth-only reload cannot replace installed runtime libraries. No robot
+deployment or hardware validation was performed as part of this upgrade.
+Verify INIT/STOP, repeat OpMode selection, driving, a short tuned autonomous
+path, Panels/camera access, and a subsequent Sloth reload on the robot.
+
+Publisher sources checked
+
+Pedro metadata and release:
+  https://repo.maven.apache.org/maven2/com/pedropathing/revhub/maven-metadata.xml
+  https://github.com/Pedro-Pathing/PedroPathing/releases/tag/v3.0.2
+NextFTC metadata, installation and release:
+  https://repo.maven.apache.org/maven2/dev/nextftc/v2/robot/maven-metadata.xml
+  https://nextftc.dev/introduction/installation/
+  https://github.com/NextFTC/NextFTCSuite/releases/tag/v0.3.0
+Marrow metadata and release:
+  https://repo.maven.apache.org/maven2/com/skeletonarmyftc/marrow/core/maven-metadata.xml
+  https://github.com/Skeleton-Army/Marrow/releases/tag/1.2.5
+Kotlin and Jackson metadata; Jackson Android compatibility:
+  https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-bom/maven-metadata.xml
+  https://repo.maven.apache.org/maven2/com/fasterxml/jackson/jackson-bom/maven-metadata.xml
+  https://github.com/FasterXML/jackson-databind/blob/2.23/README.md#android
+Sloth and Panels metadata:
+  https://repo.dairy.foundation/releases/dev/frozenmilk/Load/maven-metadata.xml
+  https://repo.dairy.foundation/releases/dev/frozenmilk/sinister/Sloth/maven-metadata.xml
+  https://repo.dairy.foundation/releases/com/bylazar/sloth/fullpanels/maven-metadata.xml
+  https://repo.dairy.foundation/releases/com/bylazar/sloth/panels/0.3.2+1.0.5/panels-0.3.2+1.0.5.module
+Build tools:
+  https://developer.android.com/build/releases/agp-9-5-0-release-notes
+  https://dl.google.com/dl/android/maven2/com/android/tools/build/gradle/maven-metadata.xml
+  https://github.com/FIRST-Tech-Challenge/FtcRobotController/releases

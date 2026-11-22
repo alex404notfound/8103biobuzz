@@ -45,9 +45,9 @@ public class AxonTurretOpModeTest {
         op.gamepad1.right_trigger = 1; op.loop();
         verify(turret).requestPosition(0);
         clearInvocations(turret);
-        op.gamepad1.x = true; op.loop();
+        op.gamepad1.square = true; op.loop();
         verify(turret).idle();
-        op.gamepad1.x = false; op.loop();
+        op.gamepad1.square = false; op.loop();
         verify(turret, never()).requestPosition(anyDouble());
         op.gamepad1.right_trigger = 0; op.loop();
         op.gamepad1.right_trigger = 1; op.loop();
@@ -72,8 +72,8 @@ public class AxonTurretOpModeTest {
     @Test public void manualOverridesPidAndReferenceOrFaultClearNeedsMotionReleased() {
         arm();
         // SDK edges are consumed once. A disallowed press must not queue a later action.
-        when(op.gamepad1.bWasPressed()).thenReturn(true, false);
-        when(op.gamepad1.yWasPressed()).thenReturn(true, false);
+        when(op.gamepad1.circleWasPressed()).thenReturn(true, false);
+        when(op.gamepad1.triangleWasPressed()).thenReturn(true, false);
         op.gamepad1.left_bumper = true; op.gamepad1.left_stick_x = 0.5f;
         op.gamepad1.right_trigger = 1; op.loop();
         verify(turret).requestManual(0.5);
@@ -82,8 +82,8 @@ public class AxonTurretOpModeTest {
         op.gamepad1.left_bumper = false; op.gamepad1.left_stick_x = 0;
         op.gamepad1.right_trigger = 0; op.loop();
         verify(turret, never()).zeroHere(); verify(turret, never()).clearFault();
-        when(op.gamepad1.bWasPressed()).thenReturn(true);
-        when(op.gamepad1.yWasPressed()).thenReturn(true);
+        when(op.gamepad1.circleWasPressed()).thenReturn(true);
+        when(op.gamepad1.triangleWasPressed()).thenReturn(true);
         op.loop();
         verify(turret).clearFault(); verify(turret).zeroHere();
     }

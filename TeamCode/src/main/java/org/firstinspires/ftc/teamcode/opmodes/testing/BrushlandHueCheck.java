@@ -19,7 +19,7 @@ public class BrushlandHueCheck extends OpMode {
     private long samples;
     private double minimumHue = Double.POSITIVE_INFINITY;
     private double maximumHue = Double.NEGATIVE_INFINITY;
-    private boolean previousB;
+    private boolean previousCircle;
 
     @Override public void init() {
         telemetry = RobotTelemetry.forOpMode(telemetry);
@@ -28,7 +28,7 @@ public class BrushlandHueCheck extends OpMode {
         telemetry.setMsTransmissionInterval(100);
         telemetry.addLine("First configure ANALOG_HUE_CALIBRATION, then power-cycle into Analog Input.");
         telemetry.addLine("Sensor pin 0 must reach the Analog Input named colorHue.");
-        telemetry.addLine("Hold A to capture one ball's hue; B clears captured values.");
+        telemetry.addLine("Hold Cross to capture one ball's hue. Circle clears captured values.");
         telemetry.update();
     }
 
@@ -45,14 +45,14 @@ public class BrushlandHueCheck extends OpMode {
         double voltage = hueInput.getVoltage();
         // Brushland defines its full analog hue range as 0..3.3 V, not the hub ADC maximum.
         double hue = voltage / 3.3 * 360.0;
-        boolean clearPressed = gamepad1.b && !previousB;
-        previousB = gamepad1.b;
+        boolean clearPressed = gamepad1.circle && !previousCircle;
+        previousCircle = gamepad1.circle;
         if (clearPressed) {
             samples = 0;
             minimumHue = Double.POSITIVE_INFINITY;
             maximumHue = Double.NEGATIVE_INFINITY;
         }
-        if (gamepad1.a && !gamepad1.b && Double.isFinite(hue)) {
+        if (gamepad1.cross && !gamepad1.circle && Double.isFinite(hue)) {
             minimumHue = Math.min(minimumHue, hue);
             maximumHue = Math.max(maximumHue, hue);
             samples++;
@@ -63,7 +63,7 @@ public class BrushlandHueCheck extends OpMode {
         lastTelemetryNs = now;
         telemetry.addData("Voltage (V)", "%.4f", voltage);
         telemetry.addData("Internal hue (degrees)", "%.1f", hue);
-        telemetry.addData("Capture", gamepad1.a && !gamepad1.b ? "RECORDING" : "Hold A");
+        telemetry.addData("Capture", gamepad1.cross && !gamepad1.circle ? "RECORDING" : "Hold Cross");
         telemetry.addData("Captured samples", samples);
         if (samples > 0) {
             telemetry.addData("Captured min / max (degrees)", "%.1f / %.1f", minimumHue, maximumHue);
@@ -71,7 +71,7 @@ public class BrushlandHueCheck extends OpMode {
                 telemetry.addLine("Possible 0/360 wrap: do not use this whole min-to-max interval.");
             }
         }
-        telemetry.addLine("B: clear. Hold A while rotating ONE actual ball at its mounted sensing distance.");
+        telemetry.addLine("Circle clears captured values. Hold Cross while rotating ONE actual ball at its mounted sensing distance.");
         telemetry.addLine("Repeat for red nectar, blue nectar, and yellow pollen; record bounds plus margin.");
         telemetry.addLine("Red can cross 0/360: use separate intervals near 0 and 360.");
         telemetry.addLine("Hue alone does not establish object presence. These are calibration readings.");

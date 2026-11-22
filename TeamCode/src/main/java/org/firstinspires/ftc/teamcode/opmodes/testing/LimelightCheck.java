@@ -24,8 +24,8 @@ public class LimelightCheck extends RobotOpMode {
     }
 
     @Override protected void onInitLoop() {
-        if (gamepad1.xWasPressed()) robot.drivetrain.recalibrateLocalization();
-        robot.telemetry.addLine("Keep still. X recalibrates Pinpoint in INIT; wait for READY.");
+        if (gamepad1.squareWasPressed()) robot.drivetrain.recalibrateLocalization();
+        robot.telemetry.addLine("Keep still. Square recalibrates Pinpoint in INIT. Wait for READY.");
         robot.telemetry.addLine("BIOBUZZ tags move. Absolute correction is for fixed, surveyed practice tags only.");
         robot.telemetry.addLine("For practice tags, verify camera map/extrinsics and Limelight frame before enabling correction.");
     }

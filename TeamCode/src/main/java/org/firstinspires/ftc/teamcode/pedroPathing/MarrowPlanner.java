@@ -61,7 +61,7 @@ public final class MarrowPlanner {
                 .bruteForceOrderLimit(MAX_TARGETS);
     }
 
-    /** Go to an exact robot-center pose. Pedro supplies headings that Weaver 1.2.1's end() mode drops. */
+    /** Go to an exact robot-center pose with explicit Pedro heading interpolation. */
     public Plan planTo(Pose start, Pose end) {
         validatePose(start);
         validatePose(end);

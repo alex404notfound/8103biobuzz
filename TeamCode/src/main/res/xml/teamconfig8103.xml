@@ -1,24 +1,23 @@
 <?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
-<!-- Team 8103's single robot configuration: seven motors and two servos.
-     Motor names/ports preserve the verified wiring: bigShooter is the transfer.
-     REV Servo Hub address 3; wedge on servo 0 and shot stopper on servo 1.
-     The Servo Hub's physical address must match this configuration. -->
+<!-- Team 8103's single robot configuration: seven motors, three servos and Pinpoint.
+     The intake/transfer motor is configured as intake on Expansion Hub port 0.
+     Pinpoint on Control Hub I2C 1; forward pod to X, strafe pod to Y. -->
 <Robot type="FirstInspires-FTC">
     <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
         <LynxModule name="Expansion Hub 1" port="1">
-            <goBILDA5201SeriesMotor name="backRight" port="0" />
-            <goBILDA5201SeriesMotor name="frontRight" port="1" />
-            <goBILDA5201SeriesMotor name="intake" port="2" />
+            <goBILDA5201SeriesMotor name="intake" port="0" />
+            <goBILDA5201SeriesMotor name="backRight" port="1" />
+            <goBILDA5201SeriesMotor name="backLeft" port="2" />
             <goBILDA5201SeriesMotor name="smallShooter" port="3" />
+            <Servo name="turret" port="0" />
         </LynxModule>
         <LynxModule name="Control Hub" port="173">
-            <goBILDA5201SeriesMotor name="backLeft" port="0" />
-            <goBILDA5201SeriesMotor name="bigShooter" port="2" />
-            <goBILDA5201SeriesMotor name="frontLeft" port="3" />
-        </LynxModule>
-        <ServoHub name="REV Servo Hub" port="3">
+            <goBILDA5201SeriesMotor name="frontLeft" port="1" />
+            <goBILDA5201SeriesMotor name="frontRight" port="2" />
+            <goBILDA5201SeriesMotor name="shooter2" port="3" />
             <Servo name="frontWedge" port="0" />
-            <Servo name="shotStopper" port="1" />
-        </ServoHub>
+            <Servo name="shotStopper" port="2" />
+            <goBILDAPinpoint name="pinpoint" port="1" bus="1" />
+        </LynxModule>
     </LynxUsbDevice>
 </Robot>

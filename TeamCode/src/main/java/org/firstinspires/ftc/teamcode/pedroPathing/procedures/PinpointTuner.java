@@ -65,7 +65,7 @@ final class PinpointPush extends SafeTuningOpMode<Double> {
     PinpointPush(boolean forward, double distance) {
         super(forward ? "Forward pod check" : "Left pod check",
                 "After arming, push the robot " + distance + " inches " + (forward ? "forward" : "left")
-                        + " without turning, then release and press A to accept. STOP aborts.", true);
+                        + " without turning, then release and press Cross to accept. STOP aborts.", true);
         this.forward = forward;
     }
     @Override protected long timeoutNanos() { return 120_000_000_000L; }
@@ -77,10 +77,10 @@ final class PinpointPush extends SafeTuningOpMode<Double> {
             localizer.update();
             double displacement = forward ? localizer.pose().x() : localizer.pose().y();
             telemetry.addData("Reported inches", displacement);
-            telemetry.addLine("Finish the measured push, then release/press A. B/STOP aborts.");
+            telemetry.addLine("Finish the measured push, then release/press Cross. Circle or STOP aborts.");
             telemetry.update();
-            if (!gamepad1.a) released = true;
-            if (released && gamepad1.a) {
+            if (!gamepad1.cross) released = true;
+            if (released && gamepad1.cross) {
                 if (Math.abs(displacement) < 3) throw new IllegalArgumentException("Too little pod movement; check wiring and repeat");
                 if (Math.abs(Angle.normalizeSigned(localizer.pose().heading())) > Math.toRadians(10))
                     throw new IllegalArgumentException("Robot rotated during the push; repeat without turning");
@@ -94,7 +94,7 @@ final class PinpointPush extends SafeTuningOpMode<Double> {
 final class PinpointOffsets extends SafeTuningOpMode<OffsetCalibration.Result> {
     PinpointOffsets() {
         super("Pinpoint offset measurement", "After arming, rotate the robot manually in place about 180 degrees in either direction. "
-                + "Release and press A once the robot is still. Temporary zero offsets are restored on every exit.", true);
+                + "Release and press Cross once the robot is still. Temporary zero offsets are restored on every exit.", true);
     }
     @Override protected long timeoutNanos() { return 120_000_000_000L; }
     @Override protected OffsetCalibration.Result runSafely() throws InterruptedException {
@@ -111,10 +111,10 @@ final class PinpointOffsets extends SafeTuningOpMode<OffsetCalibration.Result> {
             totalHeading += Angle.normalizeSigned(pose.heading() - previousHeading);
             previousHeading = pose.heading();
             telemetry.addData("Turn (degrees)", Math.toDegrees(totalHeading));
-            telemetry.addLine("Turn about 180 degrees; stop moving and release/press A. B/STOP aborts.");
+            telemetry.addLine("Turn about 180 degrees; stop moving and release/press Cross. Circle or STOP aborts.");
             telemetry.update();
-            if (!gamepad1.a) released = true;
-            if (released && gamepad1.a) {
+            if (!gamepad1.cross) released = true;
+            if (released && gamepad1.cross) {
                 if (!OffsetCalibration.hasCompletedHalfTurn(totalHeading) || Math.abs(totalHeading) > Math.toRadians(240))
                     throw new IllegalArgumentException("Use a half-turn between 180 and 240 degrees; repeat the measurement");
                 if (localizer.velocity().toVector2D().magnitude() > 0.5 || Math.abs(localizer.velocity().omega) > 0.05)

@@ -37,7 +37,7 @@ final class PathTest extends SafeTuningOpMode<Pose> {
     private final double distance;
     PathTest(Tests.Test selected, double distance) {
         super(selected + " test", "The chosen test is " + selected + " with distance " + distance
-                + " inches. Localization is manual; release/press A to finish that test. B/STOP always aborts.", true);
+                + " inches. Localization is manual; release/press Cross to finish that test. Circle or STOP always aborts.", true);
         this.selected = selected;
         this.distance = distance;
     }
@@ -53,10 +53,10 @@ final class PathTest extends SafeTuningOpMode<Pose> {
                 localizer.update();
                 telemetry.addData("Pose", localizer.pose());
                 telemetry.addData("Velocity (in/s, rad/s)", localizer.velocity());
-                telemetry.addLine("Move by hand. Release/press A to finish. B/STOP aborts.");
+                telemetry.addLine("Move by hand. Release/press Cross to finish. Circle or STOP aborts.");
                 telemetry.update();
-                if (!gamepad1.a) released = true;
-                if (released && gamepad1.a) return localizer.pose();
+                if (!gamepad1.cross) released = true;
+                if (released && gamepad1.cross) return localizer.pose();
                 Thread.sleep(10);
             }
         }

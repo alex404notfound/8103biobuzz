@@ -21,7 +21,7 @@ public class MarrowPlannerTest {
         return new MarrowPlanner(4, 4, 1, FIELD, Arrays.asList(obstacles));
     }
 
-    @Test public void destinationKeepsTheRequestedPedroHeadingEvenThoughWeaverDropsIt() {
+    @Test public void destinationKeepsTheRequestedPedroHeading() {
         MarrowPlanner.Plan plan = planner().planTo(new Pose(20, 72, 0), new Pose(100, 72, Math.PI / 2));
         assertEquals(20, plan.path.get(0).x(), 1e-8);
         assertEquals(100, plan.path.endPose().x(), 1e-8);

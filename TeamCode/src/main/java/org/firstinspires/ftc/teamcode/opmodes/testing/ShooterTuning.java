@@ -58,7 +58,7 @@ public class ShooterTuning extends OpMode {
     private double range = Double.NaN;
     private ShotTable.Lookup lookup = new ShotTable().lookup(Double.NaN);
     private String saveStatus = "No sample saved this run";
-    private String poseStatus = "INIT: enter measured start pose, then GP2 A";
+    private String poseStatus = "INIT: enter measured start pose, then GP2 Cross";
     private String runStatus = "INIT";
 
     public ShooterTuning() {
@@ -88,7 +88,7 @@ public class ShooterTuning extends OpMode {
             try {
                 tables = store.load();
                 tablesLoaded = true;
-                saveStatus = "Loaded saved tables; A saves, B undoes the last save";
+                saveStatus = "Loaded saved tables. Cross saves and Circle undoes the last save.";
             } catch (IOException failure) {
                 tables = ShotTableStore.empty();
                 saveStatus = "LOAD FAILED - file preserved; saving/lookup disabled: " + failure.getMessage();
@@ -99,11 +99,11 @@ public class ShooterTuning extends OpMode {
     @Override public void init_loop() {
         if (stopped) return;
         try {
-            boolean calibrate = gamepad2.xWasPressed(), seed = gamepad2.aWasPressed();
+            boolean calibrate = gamepad2.squareWasPressed(), seed = gamepad2.crossWasPressed();
             selectConfiguration();
             if (calibrate) {
                 fieldPoseInitialized = false;
-                poseStatus = "Calibrating: keep still, then GP2 A to reapply measured pose";
+                poseStatus = "Calibrating: keep still, then GP2 Cross to reapply measured pose";
                 drive.recalibrateLocalization();
             }
             sampleDrive();
@@ -137,10 +137,10 @@ public class ShooterTuning extends OpMode {
     @Override public void loop() {
         if (!active || stopped) return;
         try {
-            boolean save = gamepad1.aWasPressed(), revert = gamepad1.bWasPressed();
+            boolean save = gamepad1.crossWasPressed(), revert = gamepad1.circleWasPressed();
             if (gamepad1.dpadLeftWasPressed()) selectedBall = Ball.SMALL_POLLEN;
             if (gamepad1.dpadRightWasPressed()) selectedBall = Ball.LARGE_NECTAR;
-            if (gamepad1.yWasPressed()) automaticLookup = !automaticLookup;
+            if (gamepad1.triangleWasPressed()) automaticLookup = !automaticLookup;
             boolean up = gamepad1.dpadUpWasPressed(), down = gamepad1.dpadDownWasPressed();
             selectConfiguration();
             if (!lookupMode && Double.isFinite(rpmStep) && rpmStep > 0 && rpmStep <= 500) {
@@ -148,8 +148,8 @@ public class ShooterTuning extends OpMode {
                 if (down) launcher.adjustRpm(-rpmStep);
             }
             // These controls only reset odometry during INIT.
-            gamepad2.aWasPressed(); gamepad2.xWasPressed();
-            if (gamepad1.x) releaseRequired = true;
+            gamepad2.crossWasPressed(); gamepad2.squareWasPressed();
+            if (gamepad1.square) releaseRequired = true;
             if (releaseRequired || (!spinHeld() && !gamepad1.left_bumper)) launcher.idle();
             if (releaseRequired || !gamepad2.left_bumper) drive.stop();
 
@@ -157,7 +157,7 @@ public class ShooterTuning extends OpMode {
             updateLookup();
             if (releaseRequired) {
                 stopOutputs();
-                runStatus = "Release RT, both LBs and X to arm";
+                runStatus = "Release R2, both L1 buttons, and Square to arm";
                 if (controlsReleased()) releaseRequired = false;
             } else if (ball == null || cell == null) {
                 stopOutputs(); runStatus = "Select a ball and CELL";
@@ -231,7 +231,7 @@ public class ShooterTuning extends OpMode {
     }
     private boolean spinHeld() { return gamepad1.right_trigger > 0.25; }
     private boolean controlsReleased() {
-        return !spinHeld() && !gamepad1.left_bumper && !gamepad2.left_bumper && !gamepad1.x;
+        return !spinHeld() && !gamepad1.left_bumper && !gamepad2.left_bumper && !gamepad1.square;
     }
     private ShotTable table() { return ball == null ? new ShotTable() : tables.get(ball); }
 
@@ -248,7 +248,7 @@ public class ShooterTuning extends OpMode {
         }
         if (!spinHeld() || gamepad1.left_bumper || !launcher.isAtSpeed()
                 || launcher.getTargetRpm() != launcher.getManualRpm()) {
-            saveStatus = "Save refused: hold RT until the shooter is at the tuned RPM"; return;
+            saveStatus = "Save refused: hold R2 until the shooter is at the tuned RPM"; return;
         }
         ShotTable.Point point;
         Map<Ball, ShotTable> next = new EnumMap<>(tables);
@@ -262,7 +262,7 @@ public class ShooterTuning extends OpMode {
         try {
             store.save(next);
             undo = tables; tables = next;
-            saveStatus = String.format(Locale.US, "SAVED %s: %.1f in -> %.0f RPM (%d points). Release RT to continue.",
+            saveStatus = String.format(Locale.US, "SAVED %s: %.1f in -> %.0f RPM (%d points). Release R2 to continue.",
                     ball, point.distance, point.rpm, table().points().size());
             updateLookup();
         } catch (IOException failure) {
@@ -312,9 +312,9 @@ public class ShooterTuning extends OpMode {
         for (ShotTable.Point point : table().points())
             points.append(String.format(Locale.US, "%.1f in: %.0f RPM | ", point.distance, point.rpm));
         telemetry.addData("Saved distances (selected ball)", points.length() == 0 ? "None" : points.toString());
-        telemetry.addLine("GP1 left/right: small/big | up/down: RPM | RT: run selected | LB: direction test");
-        telemetry.addLine("GP1 A: save settled manual point | B: undo last save | Y: manual/lookup | X: cancel");
-        telemetry.addLine("GP2 LB + sticks: slow robot-relative drive | INIT GP2 A: measured start | X: calibrate");
+        telemetry.addLine("GP1 D-pad left/right selects the ball and up/down adjusts RPM. Hold R2 to run or L1 to check direction.");
+        telemetry.addLine("GP1 Cross saves a settled manual point. Circle undoes the last save. Triangle toggles lookup. Square cancels.");
+        telemetry.addLine("Hold GP2 L1 and use the sticks to drive slowly. In INIT, GP2 Cross applies the measured start and Square calibrates.");
         telemetry.addLine("Panels Launcher: separate big/small gains and manual RPM. Aim/feed manually.");
         telemetry.update();
     }

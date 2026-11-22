@@ -58,14 +58,14 @@ public class AxonTurretTest extends OpMode {
         if (!active || stopped) return;
         try {
             // SDK button edges remain queued until consumed. Discard disallowed presses now,
-            // so a B press during motion cannot unexpectedly zero later when controls release.
-            boolean zeroPressed = gamepad1.bWasPressed(), clearPressed = gamepad1.yWasPressed();
-            boolean originPressed = gamepad1.aWasPressed();
+            // so a Circle press during motion cannot unexpectedly zero later when controls release.
+            boolean zeroPressed = gamepad1.circleWasPressed(), clearPressed = gamepad1.triangleWasPressed();
+            boolean originPressed = gamepad1.crossWasPressed();
             boolean leftPressed = gamepad1.dpadLeftWasPressed(), rightPressed = gamepad1.dpadRightWasPressed();
-            if (gamepad1.x) releaseRequired = true;
+            if (gamepad1.square) releaseRequired = true;
             if (releaseRequired) {
                 turret.idle();
-                if (motionReleased() && !gamepad1.x && !gamepad1.b && !gamepad1.y) releaseRequired = false;
+                if (motionReleased() && !gamepad1.square && !gamepad1.circle && !gamepad1.triangle) releaseRequired = false;
             } else {
                 if (originPressed) targetDegrees = 0;
                 if (Double.isFinite(targetStepDegrees) && targetStepDegrees > 0 && targetStepDegrees <= 30) {
@@ -74,7 +74,7 @@ public class AxonTurretTest extends OpMode {
                 }
                 if (gamepad1.left_bumper) {
                     double stick = Math.abs(gamepad1.left_stick_x) < 0.1 ? 0 : gamepad1.left_stick_x;
-                    turret.requestManual(stick); // Manual overrides PID while LB is held.
+                    turret.requestManual(stick); // Manual overrides PID while L1 is held.
                 } else if (gamepad1.right_trigger > 0.25) turret.requestPosition(targetDegrees);
                 else turret.idle();
 
@@ -85,7 +85,7 @@ public class AxonTurretTest extends OpMode {
                 }
             }
             tick();
-            if (releaseRequired) telemetry.addLine("Release RT/LB, center stick, and release X/B/Y to arm controls.");
+            if (releaseRequired) telemetry.addLine("Release R2, L1, Square, Circle, and Triangle and center the stick to arm.");
             telemetry.update();
         } catch (RuntimeException failure) {
             try { stop(); } catch (RuntimeException stopFailure) { failure.addSuppressed(stopFailure); }
@@ -124,9 +124,9 @@ public class AxonTurretTest extends OpMode {
         telemetry.addData("Turret gear preset", turret.getGearPreset());
         telemetry.addData("Servo turns per turret turn", turret.getServoTurnsPerTurretTurn());
         telemetry.addData("Travel limits", AxonTurret.limitTravel ? AxonTurret.minDegrees + " .. " + AxonTurret.maxDegrees : "DISABLED (continuous travel)");
-        telemetry.addLine("LB + left stick X: manual jog | RT: hold profiled PID + feedforward | X: cancel");
-        telemetry.addLine("B: mark physical zero | Y: clear fault (release all motion first)");
-        telemetry.addLine("Left/right: target step | A: target zero | Panels: AxonTurret gains / AxonTurretTest target");
+        telemetry.addLine("Hold L1 and move the left stick sideways to jog. Hold R2 to run the profile. Square cancels.");
+        telemetry.addLine("With motion controls released, Circle marks physical zero and Triangle clears the fault.");
+        telemetry.addLine("D-pad left/right steps the target. Cross sets it to zero. Tune gains and target in Panels.");
         telemetry.addLine("Practice only. RAW JOG has no travel limits until zero is established.");
     }
 

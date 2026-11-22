@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import dev.nextftc.robot.NextRobot;
 import dev.nextftc.robot.RobotState;
 import dev.nextftc.robot.opmode.NextOpMode;
@@ -24,6 +25,8 @@ import static org.junit.Assert.*;
 
 public class NextFtcRegistrationTest {
     @Test public void robotDiscoveryDoesNotTouchHardwareAndEveryMigratedOpModeHasAUsableRegistration() throws Exception {
+        assertNotNull(RedSkeletonAuto.class.getAnnotation(Disabled.class));
+        assertNotNull(BlueSkeletonAuto.class.getAnnotation(Disabled.class));
         Robot robot = new Robot();
         assertTrue(robot instanceof NextRobot);
         assertTrue(robot.getMechanisms().isEmpty());

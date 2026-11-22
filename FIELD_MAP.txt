@@ -13,8 +13,8 @@ Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
    Coordinates are inches from the bottom-left corner with the audience below:
    X increases to the right; Y increases away from the audience.
    Heading 0 points right, 90 points up, 180 left, and 270 toward the audience.
-5. Keep the robot stationary. If calibration is needed, press X during INIT
-   and wait for Pinpoint READY. Press A during INIT to apply the starting pose.
+5. Keep the robot stationary. If calibration is needed, press Square during INIT
+   and wait for Pinpoint READY. Press Cross during INIT to apply the starting pose.
    Editing the values alone does not reset the robot's position.
 6. Press START and move the robot by hand. Field Map does not power the drive
    motors. For powered driving, use Skeleton TeleOp, which retains the last

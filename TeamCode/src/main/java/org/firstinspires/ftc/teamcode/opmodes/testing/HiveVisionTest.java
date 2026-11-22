@@ -50,11 +50,11 @@ public class HiveVisionTest extends OpMode {
             else if (gamepad1.dpad_down) tracker.setFilter(Filter.BLUE);
             else if (gamepad1.dpad_left) tracker.setFilter(Filter.YELLOW);
             else if (gamepad1.dpad_right) tracker.setFilter(Filter.ALL);
-            if (gamepad1.xWasPressed()) tracker.reset();
+            if (gamepad1.squareWasPressed()) tracker.reset();
             LLResult frame = camera.getLatestResult();
             tracker.update(frame);
             telemetry.addLine("Stationary camera test. Panels: HiveVisionConfig; STOP/re-INIT applies settings.");
-            telemetry.addLine("D-pad: up red, down blue, left yellow, right all. X: reacquire on next frame.");
+            telemetry.addLine("D-pad: up red, down blue, left yellow, right all. Square reacquires on the next frame.");
             telemetry.addData("Vision status", tracker.getStatus());
             telemetry.addData("Pipeline requested / received", pipeline + " / " + (frame == null ? "none" : frame.getPipelineIndex()));
             telemetry.addData("Pipeline type", frame == null ? "none" : frame.getPipelineType());

@@ -79,7 +79,7 @@ public class RobotOpModeLifecycleTest {
         try (NextOpModeHarness<TestOpMode> runner = new NextOpModeHarness<>(() -> new TestOpMode(robot, events))) {
             runner.init();
             runner.opMode.startAllowed = false;
-            runner.start(); // NextFTC 0.2.1 also reaches this when STOP ends INIT.
+            runner.start(); // NextFTC also reaches this when STOP ends INIT.
             assertFalse(events.contains("start"));
             verify(robot.drive, never()).getDefaultCommand();
             verify(robot.drive).stop();

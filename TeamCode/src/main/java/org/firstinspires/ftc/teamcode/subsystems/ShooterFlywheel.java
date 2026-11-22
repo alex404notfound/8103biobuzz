@@ -13,7 +13,7 @@ import java.util.function.LongSupplier;
 /** One independently controlled flywheel motor with its own encoder and voltage-based PID/feedforward. */
 public class ShooterFlywheel {
     public static final double MAX_MOTOR_RPM = 6000;
-    public static final SpeedTuning SHOOTER = new SpeedTuning();
+    public static final SpeedTuning SHOOTER = new SpeedTuning(0.02, 0.0025, true);
     private static final long DIRECTION_SETTLE_NANOS = 400_000_000L;
     private static final double DEFAULT_RPM_TOLERANCE = 150;
 

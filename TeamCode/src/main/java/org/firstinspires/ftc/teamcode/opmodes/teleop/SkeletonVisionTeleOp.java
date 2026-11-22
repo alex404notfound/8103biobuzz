@@ -4,7 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import dev.nextftc.robot.opmode.NextTeleop;
 import org.firstinspires.ftc.teamcode.robot.Robot;
 
-/** Vision scaffold; add the installed Limelight and Pinpoint to teamconfig8103 before use. */
+/** Vision scaffold; add the installed Limelight to teamconfig8103 before use. */
 @Disabled
 @NextTeleop(name = "Skeleton Vision TeleOp", group = "Competition")
 public class SkeletonVisionTeleOp extends SkeletonTeleOp {

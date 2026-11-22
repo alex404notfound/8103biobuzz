@@ -80,8 +80,8 @@ public abstract class AutoOpMode extends RobotOpMode {
         robot.telemetry.addData("Auto Pinpoint", robot.drivetrain.getLocalizationStatus());
         robot.telemetry.addData("Auto Foresight", robot.drivetrain.isPathFollowingConfigured()
                 ? "Configured" : "Run AutoTune; enter measurements in Constants");
-        robot.telemetry.addLine("Keep robot still; press X in INIT to recalibrate Pinpoint. Wait for READY.");
-        if (gamepad1.xWasPressed()) robot.drivetrain.recalibrateLocalization();
+        robot.telemetry.addLine("Keep the robot still and press Square in INIT to recalibrate Pinpoint. Wait for READY.");
+        if (gamepad1.squareWasPressed()) robot.drivetrain.recalibrateLocalization();
         onAutoInitLoop();
     }
 

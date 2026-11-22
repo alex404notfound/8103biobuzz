@@ -54,7 +54,7 @@ public class HiveMarrowTest extends HivePedroTest {
     }
 
     @Override protected void showPlannerTelemetry() {
-        robot.telemetry.addLine("Marrow: measured field-frame start; configured keep-outs only. RT release/sticks/X stop.");
+        robot.telemetry.addLine("Marrow uses the measured field start and configured keep-outs. Release R2, move a stick, or press Square to stop.");
         MarrowPlanner.Plan plan = approach.getPlannedRoute();
         robot.telemetry.addData("Marrow route length upper bound in", plan == null ? "none" : plan.maximumLengthInches);
     }

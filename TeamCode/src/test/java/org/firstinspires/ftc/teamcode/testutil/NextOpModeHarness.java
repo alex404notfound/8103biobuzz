@@ -50,7 +50,7 @@ public final class NextOpModeHarness<T extends NextOpMode> implements AutoClosea
         } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
     }
 
-    public void init() { hooks.forEach(OpModeHook::afterConstruction); }
+    public void init() { hooks.forEach(hook -> hook.afterConstruction(opMode)); }
     public void initLoop() {
         hooks.forEach(OpModeHook::beforeDisabled);
         opMode.disabledPeriodic();
@@ -69,7 +69,9 @@ public final class NextOpModeHarness<T extends NextOpMode> implements AutoClosea
     /** BoundNextOpMode invokes afterEnd even when it cannot reach the user's end(). */
     public void cleanupAfterFailure() {
         Throwable failure = null;
-        for (OpModeHook hook : hooks) {
+        // NextFTC 0.3 tears down hooks in reverse construction order.
+        for (int index = hooks.size() - 1; index >= 0; index--) {
+            OpModeHook hook = hooks.get(index);
             try { hook.afterEnd(); }
             catch (Throwable error) {
                 if (failure == null) failure = error;

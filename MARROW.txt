@@ -1,8 +1,8 @@
-Marrow integration (1.2.1)
+Marrow integration (1.2.5)
 
 Panels browser setup, graphs and Capture/replay: see PANELS_SETUP.txt.
 
-TeamCode includes com.skeletonarmyftc.marrow:core:1.2.1 alongside Pedro 3.0.1,
+TeamCode includes com.skeletonarmyftc.marrow:core:1.2.5 alongside Pedro 3.0.2,
 NextFTC v2 and its existing Ivy scheduler. Weaver plans geometry; the existing
 Drivetrain.followPath command owns motor output. Marrow's optional bulk-caching
 hook remains at its default OFF; Robot retains manual caching. Use Marrow's Ivy
@@ -37,24 +37,24 @@ Setup, then re-INIT:
 5. Install a full APK with the normal project installer after this dependency
    change. A Sloth-only reload cannot add Marrow/Jackson to the installed app.
 
-Keep still in INIT; X recalibrates Pinpoint while preserving the field pose.
-After START, release RT and center the sticks, then hold RT for one approach.
-Release RT, press X, move either stick, or press Driver Station STOP to stop.
+Keep still in INIT. Square recalibrates Pinpoint while preserving the field pose.
+After START, release R2 and center the sticks, then hold R2 for one approach.
+Release R2, press Square, move either stick, or press Driver Station STOP to stop.
 D-pad left/up/down selects yellow/red/blue as in Hive Pedro Test. An abort or
-completed attempt requires releasing RT before another attempt can start.
+completed attempt requires releasing R2 before another attempt can start.
 Panels/MarrowConfig edits apply on re-INIT, not during an attempt.
 
 What is checked:
 
-- Weaver 1.2.1 can return its original, colliding curve when avoidance fails.
+- Weaver can return its original, colliding curve when avoidance fails.
   MarrowPlanner independently validates every returned curve before following.
 - Clearance uses the robot's half-diagonal plus the configured margin, covering
   every heading. Samples are at most 0.5 inches apart by a Bezier derivative
   bound, with extra inflation covering the intervals. Tight passages may be
   rejected conservatively. This is a geometric check, not a guarantee against
   localization/tracking error or an obstacle missing from the map.
-- Go-to-pose paths apply explicit Pedro heading interpolation to fix Weaver's
-  destination-only heading loss. No direct follower calls bypass the drivetrain.
+- Go-to-pose paths retain explicit Pedro heading interpolation for the requested
+  final heading. No direct follower calls bypass the drivetrain.
 - The final camera approach is checked against the same map before acquisition
   and each active loop. A nearby ball cannot skip the keep-out checks. Detours
   must fit the existing total travel budget, including the final approach.
@@ -84,11 +84,14 @@ python3 tools/run_gradle.py :TeamCode:testDebugUnitTest :TeamCode:assembleDebug 
 The regression tests use published Weaver/Pedro code for unreachable paths,
 detours, final headings, wall clearance, thin keep-outs, target selection and
 camera-stage interlocks; lifecycle tests use the actual NextFTC hooks.
-Verified locally: 418 Java tests passed with no failures or skips; assembleDebug
+Verified locally: 484 Java tests passed with no failures or skips; assembleDebug
 and assembleSloth passed, including the duplicate-class check. Gradle resolves
-Marrow 1.2.1 and its three Jackson dependencies at 2.10.0 without extra overrides.
+Marrow 1.2.5 and its three Jackson dependencies at 2.13.5 using a BOM.
+Newer Jackson lines require Android API 26; the Control Hub uses API 25.
+Persistence tests check existing typed JSON and nested settings round trips.
+See DEPENDENCY_UPGRADES.txt for the full upgrade audit.
 No robot installation or physical driving test was performed. Desktop builds
 do not validate camera accuracy or driving on a Control Hub.
 
 Upstream docs: https://marrow.skeletonarmyftc.com/automations/weaver
-Release: https://github.com/Skeleton-Army/Marrow/releases/tag/1.2.1
+Release: https://github.com/Skeleton-Army/Marrow/releases/tag/1.2.5

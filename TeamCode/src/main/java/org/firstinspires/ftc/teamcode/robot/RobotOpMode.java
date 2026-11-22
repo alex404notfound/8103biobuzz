@@ -60,7 +60,7 @@ public abstract class RobotOpMode extends NextOpMode {
         }
     }
 
-    /** BoundNextOpMode 0.2.1 calls start even when STOP releases waitForStart. */
+    /** BoundNextOpMode calls start even when STOP releases waitForStart. */
     protected boolean isStartAllowed() {
         OpModeManagerImpl manager = OpModeManagerImpl.getOpModeManagerOfActivity(AppUtil.getInstance().getActivity());
         OpMode active = manager == null ? null : manager.getActiveOpMode();
@@ -79,7 +79,7 @@ public abstract class RobotOpMode extends NextOpMode {
     private static final class LifecycleHook implements OpModeHook {
         private RobotOpMode owner;
 
-        @Override public void afterConstruction() {
+        @Override public void afterConstruction(NextOpMode opMode) {
             Scheduler.reset();
             Trigger.Companion.getDefaultEventLoop().clear();
             owner.robot.initialize(owner.hardwareMap, owner.telemetry, owner.hardwareProfile());
